@@ -10,6 +10,8 @@ deliberately skipped. Updated as each ingester lands.
 | IPEDS (NCES) — `HD2024.zip`, `EFFY2024.zip`, `C2024_A.zip` from `nces.ed.gov/ipeds/datacenter/data/` | `organizations` (5,963) | Public ZIP download, no key | Annual (`--year` selects the survey year) | Enrollment → `size_metric`; CIP completions → `programs_flags` |
 | OhioLINK member institutions — `ohiolink.edu/members` | `organizations`, `contacts` (99 library addresses across both consortia) | Public HTML, robots-allowed | Quarterly | 132 matched to existing IPEDS orgs, 18 created (hospital + independent libraries) |
 | CARLI participating libraries — `carli.illinois.edu/membership/mem-libs` | `organizations` | Public HTML, robots-allowed | Quarterly | Names + membership class only; 106 matched, 16 created |
+| Georgia Procurement Registry — `POST ssl.doas.state.ga.us/gpr/eventSearch` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | 515 open events statewide; relevance filter applied locally because the portal's title filter misses rephrasings |
+| Florida MyFloridaMarketPlace — `POST vendor.myfloridamarketplace.com/mfmp/pub/search/bids` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | One query per keyword (an empty title returns nothing), de-duplicated on advertisementId |
 
 ## Built, not yet running
 
@@ -32,17 +34,15 @@ Checked 2026-08-14. Nothing here gets a workaround — a block is a block.
 | Texas ESBD (`txsmartbuy.com`, `txsmartbuy.gov`) | `robots.txt` disallows the solicitation paths | Skipped — revisit only if Texas publishes a documented API |
 | NY OGS bid opportunities (`ogs.ny.gov`) | `robots.txt` returns 403 | Skipped; NYSCR (`nyscr.ny.gov`) responds and is the better target |
 
-## Investigated, needs an API path before it can be built
+## Investigated, not yet built
 
-These three respond and do not block us, but each serves a JavaScript shell — the listings
-arrive from a back-end call, so the ingester needs that endpoint rather than HTML parsing.
+Both respond and do not block us, but each serves a JavaScript shell — the listings arrive
+from a back-end call, so the ingester needs that endpoint rather than HTML parsing.
 
 | Source | State | Status |
 | --- | --- | --- |
-| Cal eProcure public search | CA | 200, ~5 KB JS shell — needs the search endpoint |
-| MyFloridaMarketPlace Vendor Bid System | FL | 200, ~1 KB SPA shell — needs the search endpoint |
-| NY State Contract Reporter (`nyscr.ny.gov`) | NY | 200, ~12 KB — public listings exist; pagination not yet mapped |
-| Georgia Procurement Registry (`ssl.doas.state.ga.us/gpr/`) | GA | 200, ~43 KB of server-rendered HTML — the most likely of the five to parse directly |
+| Cal eProcure public search | CA | Responds, JS shell; search endpoint not yet mapped |
+| NY State Contract Reporter (`nyscr.ny.gov`) | NY | Responds; listing endpoint not yet mapped |
 
 ## Out of scope by policy
 
@@ -55,3 +55,11 @@ Every fetch goes through `common.polite_get`: `robots.txt` is checked with our r
 User-Agent (2xx parses the rules, 404 means no rules, 401/403 means the host is closed to us),
 requests to one host are spaced 4 seconds apart, and no authenticated or paywalled page is
 ever touched.
+
+## Signal yield, measured
+
+Open, textbook-relevant public solicitations are genuinely rare on any given day. As of
+2026-08-14 the two live state portals together hold **two**: 515 open Georgia events and 190
+Florida advertisements matching our keywords produced 1 signal each. That is the market, not
+a parsing failure — the pollers exist to catch the ones that do appear. Reaching the Phase 1
+target of 20+ open signals needs SAM.gov (federal VA/DoD/BOP buys) plus the remaining states.

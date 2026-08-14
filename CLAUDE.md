@@ -74,9 +74,9 @@ sending email · CRM integration.
 - [x] **Stage 1** — schema + repo scaffold
 - [x] **Stage 2** — IPEDS import — 5,963 active institutions loaded from IPEDS 2024
 - [~] **Stage 3** — SAM.gov poller written and dry-run clean; parked, no API key available
-- [~] **Stage 4** — consortium members live (OhioLINK, CARLI); bookstore directories blocked
-      or personal-data only; state portals: TX/NY-OGS blocked by robots, CA/FL/NY-SCR/GA need
-      their search endpoints mapped. See SOURCES.md.
+- [~] **Stage 4** — consortium members live (OhioLINK, CARLI); GA and FL portals live;
+      bookstore directories blocked or personal-data only; TX/NY-OGS robots-blocked;
+      CA and NY-SCR endpoints still to map. See SOURCES.md.
 - [x] **Stage 5** — dedupe (dry-run by default), email-verification stub, 0–100 scoring
 - [x] **Stage 6** — single-file sql.js dashboard + GitHub Pages workflow
 

@@ -160,6 +160,13 @@ def normalize_name(value: str | None) -> str | None:
     return " ".join(tokens) or None
 
 
+def today() -> str:
+    """Today as an ISO date — the format every date column in the DB uses."""
+    import datetime as _dt
+
+    return _dt.date.today().isoformat()
+
+
 def normalize_state(value: str | None) -> str | None:
     if not value:
         return None
