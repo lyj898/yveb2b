@@ -1,15 +1,14 @@
-name: Deploy dashboard to GitHub Pages
+name: Deploy dashboard to GitHub Pages (opt-in)
 
-# Publishes dashboard/ (index.html + leads.db) as a static site. Enable once in
-# Settings -> Pages -> Source: GitHub Actions, then every push to main redeploys.
+# NOT the active deployment path. This repo already serves Pages from the main branch
+# with the custom domain in CNAME, so /dashboard/ publishes automatically on push and
+# reads the committed db/leads.db.
+#
+# Run this workflow only if you switch Settings -> Pages -> Source to "GitHub Actions".
+# It publishes dashboard/ alone with a pruned leads.db (~7 MB instead of ~12 MB), which
+# makes the page load faster but takes the rest of the repo off the domain.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "dashboard/**"
-      - "db/leads.db"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -33,8 +32,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Rebuild so the published leads.db always matches the committed db/leads.db.
-      - run: python dashboard/build_static.py
+      - name: Build pruned leads.db next to index.html
+        run: python dashboard/build_static.py
+
+      - name: Carry the custom domain into the artifact
+        run: cp CNAME dashboard/CNAME
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
