@@ -1,0 +1,44 @@
+name: IPEDS refresh (monthly)
+
+on:
+  schedule:
+    - cron: "40 5 1 * *"       # 1st of the month — IPEDS publishes annually, this just catches revisions
+  workflow_dispatch:
+    inputs:
+      year:
+        description: IPEDS survey year
+        default: "2024"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leads-db
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Import IPEDS
+        run: python -m ingest.ipeds_import --year ${{ inputs.year || '2024' }} --refresh
+
+      - name: Rescore and rebuild the dashboard data
+        run: |
+          python -m enrich.score
+          python dashboard/build_static.py
+
+      - name: Commit refreshed database
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add db/leads.db
+          git diff --staged --quiet || git commit -m "IPEDS refresh $(date -u +%Y-%m-%d)"
+          git push

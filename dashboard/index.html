@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Textbook Lead Desk</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Palette: ledger stock and printer's ink. Neutrals carry a slight green bias so
+   they sit with the accent instead of reading as default grey. Semantic colours
+   (urgent / soon / open) are separate from the accent and only ever mean deadline.
+   --------------------------------------------------------------------------- */
+:root {
+  --ground:        #f6f6f3;
+  --surface:       #fffffd;
+  --surface-2:     #eeeee9;
+  --line:          #d9dad3;
+  --line-strong:   #b9bbb2;
+  --ink:           #191c19;
+  --ink-2:         #4b514b;
+  --ink-3:         #767c74;
+  --accent:        #1d5c4b;
+  --accent-soft:   #dcebe4;
+  --accent-ink:    #ffffff;
+  --urgent:        #a3341f;
+  --urgent-soft:   #f7e2dc;
+  --soon:          #8a5a12;
+  --soon-soft:     #f7ecd8;
+  --open:          #2d6046;
+  --open-soft:     #dfeee4;
+  --shadow:        0 1px 2px rgba(25, 28, 25, .06), 0 8px 24px -18px rgba(25, 28, 25, .5);
+  --radius:        6px;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #141715;
+    --surface:     #1b1f1c;
+    --surface-2:   #242926;
+    --line:        #333934;
+    --line-strong: #4b524c;
+    --ink:         #e8eae6;
+    --ink-2:       #b3b9b2;
+    --ink-3:       #868d86;
+    --accent:      #6fcfae;
+    --accent-soft: #1f332b;
+    --accent-ink:  #10201a;
+    --urgent:      #f0937a;
+    --urgent-soft: #3a221c;
+    --soon:        #e3b263;
+    --soon-soft:   #352a17;
+    --open:        #7fc9a3;
+    --open-soft:   #1d2f25;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 28px -20px #000;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:      #141715;
+  --surface:     #1b1f1c;
+  --surface-2:   #242926;
+  --line:        #333934;
+  --line-strong: #4b524c;
+  --ink:         #e8eae6;
+  --ink-2:       #b3b9b2;
+  --ink-3:       #868d86;
+  --accent:      #6fcfae;
+  --accent-soft: #1f332b;
+  --accent-ink:  #10201a;
+  --urgent:      #f0937a;
+  --urgent-soft: #3a221c;
+  --soon:        #e3b263;
+  --soon-soft:   #352a17;
+  --open:        #7fc9a3;
+  --open-soft:   #1d2f25;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 28px -20px #000;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { margin: 0; font-family: var(--serif); font-weight: 600; text-wrap: balance; }
+a { color: var(--accent); }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 72px; }
+
+/* --- masthead ----------------------------------------------------------- */
+.masthead {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
+  padding-bottom: 14px; border-bottom: 2px solid var(--ink);
+}
+.masthead h1 { font-size: 27px; letter-spacing: -.01em; }
+.masthead .sub { color: var(--ink-3); font-size: 13px; }
+.masthead .spacer { flex: 1; }
+.stamp {
+  font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--ink-3);
+}
+
+/* --- summary tiles ------------------------------------------------------ */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 18px 0; }
+.tile {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; box-shadow: var(--shadow);
+}
+.tile .label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3);
+  font-family: var(--mono);
+}
+.tile .value { font-size: 26px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .value small { font-size: 13px; color: var(--ink-3); }
+
+/* --- filters ------------------------------------------------------------ */
+.filters {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: end; box-shadow: var(--shadow);
+}
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-3); font-family: var(--mono);
+}
+input[type="search"], select {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--ground);
+  border: 1px solid var(--line-strong); border-radius: 4px; padding: 6px 8px; width: 100%;
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.checks { display: flex; flex-wrap: wrap; gap: 10px 14px; grid-column: 1 / -1; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; }
+button {
+  font: inherit; font-size: 13px; cursor: pointer; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: 4px; padding: 6px 11px;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- tabs --------------------------------------------------------------- */
+.tabs { display: flex; gap: 4px; margin: 22px 0 0; border-bottom: 1px solid var(--line); }
+.tab {
+  background: none; border: 1px solid transparent; border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0; padding: 8px 15px; font-size: 14px;
+  color: var(--ink-3); margin-bottom: -1px;
+}
+.tab[aria-selected="true"] {
+  background: var(--surface); border-color: var(--line); color: var(--ink); font-weight: 600;
+}
+.count-note { color: var(--ink-3); font-size: 13px; margin: 12px 2px; font-variant-numeric: tabular-nums; }
+
+/* --- table -------------------------------------------------------------- */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; }
+th {
+  text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  font-family: var(--mono); font-weight: 500; color: var(--ink-3);
+  padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  background: var(--surface); position: sticky; top: 0; z-index: 1;
+}
+th.sortable { cursor: pointer; }
+th.sortable:hover { color: var(--accent); }
+td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr.row:hover { background: var(--surface-2); }
+tbody tr.row { cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+.org-name { font-weight: 600; }
+.org-meta { color: var(--ink-3); font-size: 12.5px; }
+
+/* score meter: number plus a bar, so rank reads at a glance while scanning */
+.score { display: flex; align-items: center; gap: 8px; }
+.score b { font-variant-numeric: tabular-nums; font-size: 15px; width: 2ch; text-align: right; }
+.meter { width: 54px; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--accent); }
+
+.pill {
+  display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.pill.type { background: var(--surface-2); color: var(--ink-2); border-color: var(--line); }
+.pill.urgent { background: var(--urgent-soft); color: var(--urgent); }
+.pill.soon { background: var(--soon-soft); color: var(--soon); }
+.pill.open { background: var(--open-soft); color: var(--open); }
+.pill.track { background: var(--accent-soft); color: var(--accent); font-family: var(--mono); }
+.pill.flag { background: var(--accent-soft); color: var(--accent); }
+
+.copy {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; background: none; border: none;
+  border-bottom: 1px dashed var(--line-strong); color: var(--ink); padding: 0 0 1px; cursor: pointer;
+}
+.copy:hover { color: var(--accent); border-color: var(--accent); }
+.copy.copied { color: var(--open); border-color: var(--open); }
+
+/* --- expanded detail ---------------------------------------------------- */
+.detail td { background: var(--surface-2); padding: 0; }
+.detail-inner { padding: 14px 16px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.detail h3 { font-size: 13px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 500; margin-bottom: 6px; }
+.detail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.detail li { font-size: 13.5px; }
+.empty-note { color: var(--ink-3); font-size: 13px; font-style: italic; }
+.bd { display: grid; gap: 5px; }
+.bd-row { display: grid; grid-template-columns: 1fr auto 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.bd-row .bar { height: 5px; background: var(--surface); border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+.bd-row .bar i { display: block; height: 100%; background: var(--accent); }
+
+/* --- cards (narrow screens) --------------------------------------------- */
+.cards { display: none; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow);
+}
+.card-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.card-meta { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
+.card-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+
+.status { padding: 40px 0; text-align: center; color: var(--ink-3); }
+.status code { font-family: var(--mono); font-size: 12.5px; }
+footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 12px; }
+
+@media (max-width: 720px) {
+  .wrap { padding: 16px 14px 56px; }
+  .table-scroll { display: none; }
+  .cards { display: block; }
+  .masthead h1 { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>Textbook Lead Desk</h1>
+    <span class="sub">US institutional supply &amp; surplus wholesale</span>
+    <span class="spacer"></span>
+    <span class="stamp" id="stamp">loading</span>
+  </header>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="filters">
+    <div class="field">
+      <label for="q">Search name, city, domain</label>
+      <input type="search" id="q" placeholder="e.g. nursing, Houston, .edu">
+    </div>
+    <div class="field">
+      <label for="track">Track</label>
+      <select id="track">
+        <option value="">Both tracks</option>
+        <option value="A">A — institutional supply</option>
+        <option value="B">B — surplus wholesale</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="orgType">Organization type</label>
+      <select id="orgType"><option value="">All types</option></select>
+    </div>
+    <div class="field">
+      <label for="state">State</label>
+      <select id="state"><option value="">All states</option></select>
+    </div>
+    <div class="field">
+      <label for="minScore">Minimum score <span id="minScoreOut">0</span></label>
+      <input type="range" id="minScore" min="0" max="100" value="0" step="5">
+    </div>
+    <div class="field">
+      <label for="ownership">Ownership</label>
+      <select id="ownership">
+        <option value="">Claimed &amp; unclaimed</option>
+        <option value="unclaimed">Unclaimed only</option>
+        <option value="claimed">Claimed only</option>
+      </select>
+    </div>
+    <div class="checks">
+      <label class="check"><input type="checkbox" id="hasSignal"> Has an open signal</label>
+      <label class="check"><input type="checkbox" id="hasContact"> Has a contact</label>
+      <label class="check"><input type="checkbox" id="health"> Nursing / allied health</label>
+      <button type="button" id="reset">Reset filters</button>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-orgs" aria-selected="true">Organizations</button>
+    <button class="tab" role="tab" id="tab-signals" aria-selected="false">Signals by deadline</button>
+  </div>
+
+  <p class="count-note" id="countNote"></p>
+  <div id="status" class="status">Loading leads.db…</div>
+
+  <section id="panel-orgs">
+    <div class="table-scroll">
+      <table id="orgTable">
+        <thead><tr>
+          <th class="sortable" data-sort="score">Score</th>
+          <th class="sortable" data-sort="name">Organization</th>
+          <th class="sortable" data-sort="org_type">Type</th>
+          <th class="sortable" data-sort="state">State</th>
+          <th class="sortable num" data-sort="size">Size</th>
+          <th>Programs</th>
+          <th class="sortable num" data-sort="contacts">Contacts</th>
+          <th class="sortable" data-sort="deadline">Next deadline</th>
+        </tr></thead>
+        <tbody id="orgBody"></tbody>
+      </table>
+    </div>
+    <div class="cards" id="orgCards"></div>
+  </section>
+
+  <section id="panel-signals" hidden>
+    <div class="table-scroll">
+      <table id="sigTable">
+        <thead><tr>
+          <th class="sortable" data-sort="deadline">Deadline</th>
+          <th>Solicitation</th>
+          <th>Buyer</th>
+          <th>Reference</th>
+          <th class="num">Estimate</th>
+          <th>Source</th>
+        </tr></thead>
+        <tbody id="sigBody"></tbody>
+      </table>
+    </div>
+    <div class="cards" id="sigCards"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   Data loading. Two paths, one UI:
+     * db path      — sql.js reads leads.db client-side (GitHub Pages / Cloudflare)
+     * embedded path— window.__LEADS_DATA__ is inlined by dashboard/build_static.py
+   Both produce the same {orgs, contacts, signals, meta} shape.
+   --------------------------------------------------------------------------- */
+const SQL_JS = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
+const DB_CANDIDATES = ["./leads.db", "../db/leads.db"];
+
+const ORG_SQL = `
+  SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
+         o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
+         o.lead_score AS score, o.score_breakdown AS breakdown, o.programs_flags AS flags,
+         o.coop_affiliations AS coops, o.status, o.claimed_by,
+         (SELECT COUNT(*) FROM contacts c WHERE c.org_id = o.id) AS contacts,
+         (SELECT COUNT(*) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
+            AND (s.deadline IS NULL OR s.deadline >= date('now'))) AS open_signals,
+         (SELECT MIN(s.deadline) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
+            AND s.deadline >= date('now')) AS deadline
+    FROM organizations o`;
+const CONTACT_SQL = `SELECT id, org_id, name, title, role_type, email, email_verified AS verified,
+                            phone, source_url FROM contacts`;
+const SIGNAL_SQL = `
+  SELECT s.id, s.org_id, s.signal_type AS type, s.title, s.description, s.url,
+         s.reference_number AS ref, s.deadline, s.amount_estimate AS amount, s.source,
+         s.state, s.status, COALESCE(o.name, s.org_name_raw) AS org_name
+    FROM signals s LEFT JOIN organizations o ON o.id = s.org_id
+   WHERE s.status = 'open' AND (s.deadline IS NULL OR s.deadline >= date('now'))`;
+
+let DATA = { orgs: [], contacts: [], signals: [], meta: {} };
+
+function loadScript(src) {
+  return new Promise((ok, fail) => {
+    const el = document.createElement("script");
+    el.src = src; el.onload = ok; el.onerror = () => fail(new Error("cannot load " + src));
+    document.head.appendChild(el);
+  });
+}
+
+async function fetchDb() {
+  for (const path of DB_CANDIDATES) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());
+    } catch (err) { /* try the next candidate */ }
+  }
+  throw new Error("leads.db not found next to this page");
+}
+
+function rows(db, sql) {
+  const out = [];
+  const stmt = db.prepare(sql);
+  while (stmt.step()) out.push(stmt.getAsObject());
+  stmt.free();
+  return out;
+}
+
+async function load() {
+  if (window.__LEADS_DATA__) { DATA = window.__LEADS_DATA__; return; }
+  await loadScript(SQL_JS + "sql-wasm.js");
+  const SQL = await initSqlJs({ locateFile: f => SQL_JS + f });
+  const db = new SQL.Database(await fetchDb());
+  DATA = {
+    orgs: rows(db, ORG_SQL),
+    contacts: rows(db, CONTACT_SQL),
+    signals: rows(db, SIGNAL_SQL),
+    meta: { generated: new Date().toISOString().slice(0, 10), origin: "leads.db" }
+  };
+}
+
+/* --- helpers ------------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+const TYPE_LABEL = {
+  university: "University", community_college: "Community college", library: "Library",
+  library_consortium: "Library consortium", bookstore_independent: "Independent bookstore",
+  bookstore_chain: "Bookstore chain", wholesaler: "Wholesaler", exporter: "Exporter",
+  jobber: "Jobber", hospital: "Hospital", gov_agency: "Government agency", coop: "Cooperative",
+  prison_education: "Prison education", career_college: "Career college", other: "Other"
+};
+const HEALTH_FLAGS = ["nursing", "allied_health", "medical", "pharmacy"];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+const parseJson = (value, fallback) => {
+  if (value == null) return fallback;
+  if (typeof value === "object") return value;
+  try { return JSON.parse(value); } catch (err) { return fallback; }
+};
+const daysTo = iso => iso ? Math.round((new Date(iso + "T00:00:00") - new Date().setHours(0,0,0,0)) / 864e5) : null;
+
+function deadlinePill(iso) {
+  if (!iso) return '<span class="pill type">no deadline</span>';
+  const d = daysTo(iso);
+  const cls = d <= 14 ? "urgent" : d <= 45 ? "soon" : "open";
+  return `<span class="pill ${cls}">${esc(iso)} · ${d}d</span>`;
+}
+function copyBtn(text, label) {
+  if (!text) return '<span class="org-meta">—</span>';
+  return `<button class="copy" data-copy="${esc(text)}">${esc(label || text)}</button>`;
+}
+document.addEventListener("click", e => {
+  const btn = e.target.closest(".copy");
+  if (!btn) return;
+  e.stopPropagation();
+  navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+    const original = btn.textContent;
+    btn.textContent = "copied";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, 1100);
+  });
+});
+
+/* --- filtering ----------------------------------------------------------- */
+const state = { tab: "orgs", sort: "score", dir: -1, sigSort: "deadline", open: new Set() };
+
+function filters() {
+  return {
+    q: $("q").value.trim().toLowerCase(),
+    track: $("track").value,
+    orgType: $("orgType").value,
+    st: $("state").value,
+    minScore: +$("minScore").value,
+    ownership: $("ownership").value,
+    hasSignal: $("hasSignal").checked,
+    hasContact: $("hasContact").checked,
+    health: $("health").checked
+  };
+}
+
+function filteredOrgs() {
+  const f = filters();
+  return DATA.orgs.filter(o => {
+    if (f.track && o.track !== f.track && o.track !== "both") return false;
+    if (f.orgType && o.org_type !== f.orgType) return false;
+    if (f.st && o.state !== f.st) return false;
+    if ((o.score ?? 0) < f.minScore) return false;
+    if (f.hasSignal && !o.open_signals) return false;
+    if (f.hasContact && !o.contacts) return false;
+    if (f.ownership === "claimed" && !o.claimed_by) return false;
+    if (f.ownership === "unclaimed" && o.claimed_by) return false;
+    if (f.health) {
+      const flags = parseJson(o.flags, {});
+      if (!HEALTH_FLAGS.some(flag => flags[flag])) return false;
+    }
+    if (f.q) {
+      const hay = `${o.name} ${o.city || ""} ${o.domain || ""} ${o.segment || ""}`.toLowerCase();
+      if (!hay.includes(f.q)) return false;
+    }
+    return true;
+  }).sort(compareOrgs);
+}
+
+function compareOrgs(a, b) {
+  const key = state.sort;
+  let x = a[key], y = b[key];
+  if (key === "deadline") { x = x || "9999-99-99"; y = y || "9999-99-99"; return x < y ? -1 : x > y ? 1 : 0; }
+  if (typeof x === "string" || typeof y === "string") {
+    return String(x ?? "").localeCompare(String(y ?? "")) * state.dir;
+  }
+  return (((y ?? -1) - (x ?? -1)) * (state.dir === -1 ? 1 : -1));
+}
+
+function filteredSignals() {
+  const f = filters();
+  const orgById = new Map(DATA.orgs.map(o => [o.id, o]));
+  return DATA.signals.filter(s => {
+    const org = s.org_id ? orgById.get(s.org_id) : null;
+    if (f.st && (s.state || org?.state) !== f.st) return false;
+    if (f.track && org && org.track !== f.track && org.track !== "both") return false;
+    if (f.orgType && (!org || org.org_type !== f.orgType)) return false;
+    if (f.minScore && (!org || (org.score ?? 0) < f.minScore)) return false;
+    if (f.q) {
+      const hay = `${s.title} ${s.org_name || ""} ${s.ref || ""}`.toLowerCase();
+      if (!hay.includes(f.q)) return false;
+    }
+    return true;
+  }).sort((a, b) => (a.deadline || "9999-99-99").localeCompare(b.deadline || "9999-99-99"));
+}
+
+/* --- rendering ----------------------------------------------------------- */
+function renderTiles() {
+  const orgs = filteredOrgs();
+  const scored = orgs.filter(o => o.score != null);
+  const withSignal = orgs.filter(o => o.open_signals > 0).length;
+  const withContact = orgs.filter(o => o.contacts > 0).length;
+  const urgent = filteredSignals().filter(s => { const d = daysTo(s.deadline); return d != null && d <= 30; }).length;
+  const avg = scored.length ? Math.round(scored.reduce((sum, o) => sum + o.score, 0) / scored.length) : 0;
+  const tiles = [
+    ["Organizations", orgs.length.toLocaleString(), `${DATA.orgs.length.toLocaleString()} total`],
+    ["Average score", avg, "of 100"],
+    ["With a contact", withContact.toLocaleString(), withContact ? "" : "Stage 4 populates this"],
+    ["Open signals", filteredSignals().length.toLocaleString(), `${withSignal} orgs affected`],
+    ["Closing ≤30 days", urgent.toLocaleString(), "act first"]
+  ];
+  $("tiles").innerHTML = tiles.map(([label, value, note]) =>
+    `<div class="tile"><div class="label">${esc(label)}</div>
+     <div class="value">${esc(value)} <small>${esc(note)}</small></div></div>`).join("");
+}
+
+function flagPills(flagsJson) {
+  const flags = parseJson(flagsJson, {});
+  const on = Object.keys(flags).filter(k => flags[k]);
+  const priority = on.filter(f => HEALTH_FLAGS.includes(f));
+  const rest = on.filter(f => !HEALTH_FLAGS.includes(f));
+  return [...priority, ...rest].slice(0, 4)
+    .map(f => `<span class="pill ${HEALTH_FLAGS.includes(f) ? "flag" : "type"}">${esc(f.replace("_", " "))}</span>`)
+    .join(" ") || '<span class="org-meta">—</span>';
+}
+
+function orgRow(o) {
+  const score = o.score ?? 0;
+  return `<tr class="row" data-org="${o.id}">
+    <td><div class="score"><b>${score}</b><span class="meter"><i style="width:${score}%"></i></span></div></td>
+    <td><div class="org-name">${esc(o.name)}</div>
+        <div class="org-meta">${esc(o.city || "")}${o.domain ? " · " + esc(o.domain) : ""}</div></td>
+    <td><span class="pill type">${esc(TYPE_LABEL[o.org_type] || o.org_type)}</span>
+        <span class="pill track">${esc(o.track)}</span></td>
+    <td>${esc(o.state || "—")}</td>
+    <td class="num">${num(o.size)}</td>
+    <td>${flagPills(o.flags)}</td>
+    <td class="num">${o.contacts}</td>
+    <td>${o.open_signals ? deadlinePill(o.deadline) : '<span class="org-meta">—</span>'}</td>
+  </tr>` + (state.open.has(o.id) ? detailRow(o) : "");
+}
+
+function detailRow(o) {
+  const contacts = DATA.contacts.filter(c => c.org_id === o.id);
+  const signals = DATA.signals.filter(s => s.org_id === o.id);
+  const breakdown = parseJson(o.breakdown, null);
+  const coops = parseJson(o.coops, []);
+
+  const contactHtml = contacts.length ? `<ul>${contacts.map(c => `<li>
+      <strong>${esc(c.name || "(no name)")}</strong> — ${esc(c.title || c.role_type)}<br>
+      ${copyBtn(c.email, c.email)} ${c.verified && c.verified !== "unverified"
+        ? `<span class="pill type">${esc(c.verified)}</span>` : ""}
+      ${c.phone ? `<span class="org-meta"> · ${esc(c.phone)}</span>` : ""}
+    </li>`).join("")}</ul>`
+    : '<p class="empty-note">No contacts yet — bookstore and consortium ingesters populate these.</p>';
+
+  const signalHtml = signals.length ? `<ul>${signals.map(s => `<li>
+      ${deadlinePill(s.deadline)}<br>
+      ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}<br>
+      ${copyBtn(s.ref, s.ref)} <span class="org-meta">${esc(s.source)}</span>
+    </li>`).join("")}</ul>`
+    : '<p class="empty-note">No open solicitations matched to this organization.</p>';
+
+  const bdHtml = breakdown ? `<div class="bd">${["segment_fit", "size", "signal_urgency"].map(key => {
+      const part = breakdown[key] || {};
+      const pct = part.max ? (part.points / part.max) * 100 : 0;
+      return `<div class="bd-row"><span>${esc(key.replace("_", " "))}</span>
+        <span class="bar" style="width:70px"><i style="width:${pct}%"></i></span>
+        <span class="num">${part.points ?? 0} / ${part.max ?? 0}</span></div>`;
+    }).join("")}</div>` : '<p class="empty-note">Not scored yet.</p>';
+
+  return `<tr class="detail"><td colspan="8"><div class="detail-inner">
+    <div><h3>Score breakdown</h3>${bdHtml}
+      <p class="org-meta" style="margin-top:8px">${esc(o.segment || "")}
+      ${coops.length ? "<br>Co-ops: " + esc(coops.join(", ")) : ""}
+      ${o.claimed_by ? "<br>Claimed by " + esc(o.claimed_by) : ""}</p></div>
+    <div><h3>Contacts (${contacts.length})</h3>${contactHtml}</div>
+    <div><h3>Open signals (${signals.length})</h3>${signalHtml}</div>
+  </div></td></tr>`;
+}
+
+function orgCard(o) {
+  const score = o.score ?? 0;
+  return `<article class="card" data-org="${o.id}">
+    <div class="card-head">
+      <div><div class="org-name">${esc(o.name)}</div>
+        <div class="card-meta">${esc(o.city || "")}${o.state ? ", " + esc(o.state) : ""}
+        ${o.size ? " · " + num(o.size) + " " + esc((o.size_type || "").replace("_", " ")) : ""}</div></div>
+      <div class="score"><b>${score}</b><span class="meter"><i style="width:${score}%"></i></span></div>
+    </div>
+    <div class="card-pills">
+      <span class="pill type">${esc(TYPE_LABEL[o.org_type] || o.org_type)}</span>
+      <span class="pill track">Track ${esc(o.track)}</span>
+      ${o.open_signals ? deadlinePill(o.deadline) : ""}
+      ${o.contacts ? `<span class="pill type">${o.contacts} contact${o.contacts > 1 ? "s" : ""}</span>` : ""}
+    </div>
+  </article>`;
+}
+
+function signalRow(s) {
+  return `<tr>
+    <td>${deadlinePill(s.deadline)}</td>
+    <td>${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}
+        <div class="org-meta">${esc((s.type || "").replace("_", " "))}</div></td>
+    <td>${esc(s.org_name || "—")}<div class="org-meta">${esc(s.state || "")}</div></td>
+    <td>${copyBtn(s.ref, s.ref)}</td>
+    <td class="num">${s.amount ? "$" + num(s.amount) : "—"}</td>
+    <td><span class="pill type">${esc(s.source)}</span></td>
+  </tr>`;
+}
+
+function signalCard(s) {
+  return `<article class="card">
+    <div class="card-head"><div>
+      <div class="org-name">${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}</div>
+      <div class="card-meta">${esc(s.org_name || "—")}</div></div></div>
+    <div class="card-pills">${deadlinePill(s.deadline)}
+      <span class="pill type">${esc(s.source)}</span>
+      ${s.amount ? `<span class="pill type">$${num(s.amount)}</span>` : ""}</div>
+    <div style="margin-top:8px">${copyBtn(s.ref, s.ref)}</div>
+  </article>`;
+}
+
+function render() {
+  renderTiles();
+  const orgs = filteredOrgs();
+  const signals = filteredSignals();
+
+  if (state.tab === "orgs") {
+    const shown = orgs.slice(0, 400);
+    $("orgBody").innerHTML = shown.map(orgRow).join("");
+    $("orgCards").innerHTML = shown.map(orgCard).join("");
+    $("countNote").textContent =
+      `${orgs.length.toLocaleString()} organizations match` +
+      (orgs.length > shown.length ? ` — showing the top ${shown.length}. Narrow the filters to see the rest.` : ".");
+  } else {
+    $("sigBody").innerHTML = signals.length ? signals.map(signalRow).join("")
+      : `<tr><td colspan="6" class="empty-note" style="padding:16px">No open signals yet. The SAM.gov poller fills this once its API key is set.</td></tr>`;
+    $("sigCards").innerHTML = signals.map(signalCard).join("");
+    $("countNote").textContent = `${signals.length.toLocaleString()} open signals with a future deadline.`;
+  }
+}
+
+function toggleTab(tab) {
+  state.tab = tab;
+  $("tab-orgs").setAttribute("aria-selected", tab === "orgs");
+  $("tab-signals").setAttribute("aria-selected", tab === "signals");
+  $("panel-orgs").hidden = tab !== "orgs";
+  $("panel-signals").hidden = tab !== "signals";
+  render();
+}
+
+function wire() {
+  ["q", "track", "orgType", "state", "minScore", "ownership", "hasSignal", "hasContact", "health"]
+    .forEach(id => $(id).addEventListener("input", () => {
+      if (id === "minScore") $("minScoreOut").textContent = $("minScore").value;
+      render();
+    }));
+  $("reset").addEventListener("click", () => {
+    ["q", "track", "orgType", "state", "ownership"].forEach(id => $(id).value = "");
+    ["hasSignal", "hasContact", "health"].forEach(id => $(id).checked = false);
+    $("minScore").value = 0; $("minScoreOut").textContent = "0";
+    render();
+  });
+  $("tab-orgs").addEventListener("click", () => toggleTab("orgs"));
+  $("tab-signals").addEventListener("click", () => toggleTab("signals"));
+
+  document.querySelectorAll("th.sortable").forEach(th => th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    state.dir = state.sort === key ? -state.dir : -1;
+    state.sort = key;
+    render();
+  }));
+
+  document.addEventListener("click", e => {
+    const row = e.target.closest("tr.row, article.card");
+    if (!row || !row.dataset.org) return;
+    const id = +row.dataset.org;
+    state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    render();
+  });
+}
+
+function populateSelects() {
+  const types = [...new Set(DATA.orgs.map(o => o.org_type))].sort();
+  $("orgType").insertAdjacentHTML("beforeend",
+    types.map(t => `<option value="${esc(t)}">${esc(TYPE_LABEL[t] || t)}</option>`).join(""));
+  const states = [...new Set(DATA.orgs.map(o => o.state).filter(Boolean))].sort();
+  $("state").insertAdjacentHTML("beforeend",
+    states.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(""));
+}
+
+load().then(() => {
+  $("status").hidden = true;
+  populateSelects();
+  wire();
+  render();
+  $("stamp").textContent = `${DATA.orgs.length.toLocaleString()} orgs · ${DATA.signals.length} open signals`;
+  $("footer").innerHTML =
+    `Data: IPEDS ${esc(DATA.meta.ipeds_year || "2024")} institutional characteristics, enrollment and completions;
+     SAM.gov opportunities. Scores are 0–100: segment fit 40, size 25, signal urgency 35.
+     Generated ${esc(DATA.meta.generated || "")}.`;
+}).catch(err => {
+  $("status").innerHTML =
+    `<p>Could not load the database.</p><p><code>${esc(err.message)}</code></p>
+     <p class="empty-note">Serve this folder over HTTP — <code>python -m http.server</code> from the repo root,
+     then open <code>/dashboard/</code>. Opening the file directly with file:// blocks the fetch.</p>`;
+});
+</script>
+</body>
+</html>
