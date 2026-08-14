@@ -176,19 +176,38 @@ _last_request_at: dict[str, float] = {}
 
 
 def robots_allows(url: str, user_agent: str = USER_AGENT) -> bool:
-    """Check robots.txt before fetching. Fetch failures are treated as 'allowed'
-    (the convention when a site publishes no robots.txt) but are logged."""
+    """Check robots.txt before fetching.
+
+    robots.txt is fetched with our own User-Agent rather than through
+    ``RobotFileParser.read()``, which sends ``Python-urllib`` and gets a 403 from any
+    WAF-fronted host — and a 403 makes the parser disallow the entire site. Status
+    handling follows the standard: 2xx parses the rules, 404/410 means no rules at all,
+    and 401/403 means we are not welcome (recorded, not worked around).
+    """
+    import requests
+
     parts = urllib.parse.urlparse(url)
     origin = f"{parts.scheme}://{parts.netloc}"
+
     if origin not in _robots_cache:
         parser = urllib.robotparser.RobotFileParser()
         parser.set_url(f"{origin}/robots.txt")
         try:
-            parser.read()
+            response = requests.get(f"{origin}/robots.txt", timeout=20,
+                                    headers={"User-Agent": USER_AGENT})
+            if response.status_code in (401, 403):
+                log.warning("robots.txt returns %s for %s — treating the host as closed",
+                            response.status_code, origin)
+                parser.disallow_all = True
+            elif response.status_code >= 400:
+                parser = None       # no robots.txt published; nothing to obey
+            else:
+                parser.parse(response.text.splitlines())
         except Exception as exc:  # noqa: BLE001
             log.warning("robots.txt unreadable for %s (%s) — proceeding", origin, exc)
             parser = None
         _robots_cache[origin] = parser
+
     parser = _robots_cache[origin]
     return True if parser is None else parser.can_fetch(user_agent, url)
 
