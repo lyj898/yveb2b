@@ -279,9 +279,16 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
         <option value="claimed">Claimed only</option>
       </select>
     </div>
+    <div class="field">
+      <label for="reach">Something to act on</label>
+      <select id="reach">
+        <option value="">Everything</option>
+        <option value="either">A contact or an open signal</option>
+        <option value="contact">A contact</option>
+        <option value="signal">An open signal</option>
+      </select>
+    </div>
     <div class="checks">
-      <label class="check"><input type="checkbox" id="hasSignal"> Has an open signal</label>
-      <label class="check"><input type="checkbox" id="hasContact"> Has a contact</label>
       <label class="check"><input type="checkbox" id="health"> Nursing / allied health</label>
       <button type="button" id="reset">Reset filters</button>
     </div>
@@ -458,8 +465,7 @@ function filters() {
     st: $("state").value,
     minScore: +$("minScore").value,
     ownership: $("ownership").value,
-    hasSignal: $("hasSignal").checked,
-    hasContact: $("hasContact").checked,
+    reach: $("reach").value,
     health: $("health").checked
   };
 }
@@ -471,8 +477,10 @@ function filteredOrgs() {
     if (f.orgType && o.org_type !== f.orgType) return false;
     if (f.st && o.state !== f.st) return false;
     if ((o.score ?? 0) < f.minScore) return false;
-    if (f.hasSignal && !o.open_signals) return false;
-    if (f.hasContact && !o.contacts) return false;
+    // "Something to act on" — a lead you cannot reach and that is not buying is not workable.
+    if (f.reach === "either" && !o.contacts && !o.open_signals) return false;
+    if (f.reach === "contact" && !o.contacts) return false;
+    if (f.reach === "signal" && !o.open_signals) return false;
     if (f.ownership === "claimed" && !o.claimed_by) return false;
     if (f.ownership === "unclaimed" && o.claimed_by) return false;
     if (f.health) {
@@ -651,8 +659,8 @@ function render() {
     $("orgBody").innerHTML = shown.map(orgRow).join("");
     $("orgCards").innerHTML = shown.map(orgCard).join("");
     $("countNote").textContent =
-      `${orgs.length.toLocaleString()} organizations match` +
-      (orgs.length > shown.length ? ` — showing the top ${shown.length}. Narrow the filters to see the rest.` : ".");
+      `${orgs.length.toLocaleString()} organization${orgs.length === 1 ? "" : "s"} match` +
+      (orgs.length > shown.length ? `es — showing the top ${shown.length}. Narrow the filters to see the rest.` : (orgs.length === 1 ? "es." : "."));
   } else {
     $("sigBody").innerHTML = signals.length ? signals.map(signalRow).join("")
       : `<tr><td colspan="6" class="empty-note" style="padding:16px">No open signals yet. The SAM.gov poller fills this once its API key is set.</td></tr>`;
@@ -671,14 +679,14 @@ function toggleTab(tab) {
 }
 
 function wire() {
-  ["q", "track", "orgType", "state", "minScore", "ownership", "hasSignal", "hasContact", "health"]
+  ["q", "track", "orgType", "state", "minScore", "ownership", "reach", "health"]
     .forEach(id => $(id).addEventListener("input", () => {
       if (id === "minScore") $("minScoreOut").textContent = $("minScore").value;
       render();
     }));
   $("reset").addEventListener("click", () => {
-    ["q", "track", "orgType", "state", "ownership"].forEach(id => $(id).value = "");
-    ["hasSignal", "hasContact", "health"].forEach(id => $(id).checked = false);
+    ["q", "track", "orgType", "state", "ownership", "reach"].forEach(id => $(id).value = "");
+    $("health").checked = false;
     $("minScore").value = 0; $("minScoreOut").textContent = "0";
     render();
   });
