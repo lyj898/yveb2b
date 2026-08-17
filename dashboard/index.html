@@ -264,6 +264,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-orgs" aria-selected="true">Organizations</button>
     <button class="tab" role="tab" id="tab-signals" aria-selected="false">Signals by deadline</button>
+    <button class="tab" role="tab" id="tab-vendors" aria-selected="false">Federal book vendors</button>
   </div>
 
   <p class="count-note" id="countNote"></p>
@@ -304,6 +305,23 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
     <div class="cards" id="sigCards"></div>
   </section>
 
+  <section id="panel-vendors" hidden>
+    <div class="table-scroll">
+      <table id="vendorTable">
+        <thead><tr>
+          <th class="num">Federal spend</th>
+          <th>Company</th>
+          <th class="num">Awards</th>
+          <th>State</th>
+          <th>Largest award</th>
+          <th>Format</th>
+        </tr></thead>
+        <tbody id="vendorBody"></tbody>
+      </table>
+    </div>
+    <div class="cards" id="vendorCards"></div>
+  </section>
+
   <footer id="footer"></footer>
 </div>
 
@@ -320,7 +338,7 @@ const DB_CANDIDATES = ["./leads.db", "../db/leads.db"];
 const ORG_SQL = `
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
          o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
-         o.programs_flags AS flags,
+         o.programs_flags AS flags, o.notes AS notes, o.source AS source,
          o.coop_affiliations AS coops, o.status, o.claimed_by,
          (SELECT COUNT(*) FROM contacts c WHERE c.org_id = o.id) AS contacts,
          (SELECT COUNT(*) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
@@ -570,6 +588,57 @@ function orgCard(o) {
   </article>`;
 }
 
+/* Federal vendors are Track B companies found through USAspending award history. They have
+   no contact yet — USAspending publishes none — so they never reach the workable desk. This
+   view exists so that evidence is not invisible: who moves books federally, and at what size. */
+function federalVendors() {
+  const f = filters();
+  return DATA.orgs
+    .map(o => ({ org: o, note: parseJson(o.notes, {}) }))
+    .filter(({ org, note }) => {
+      if (note.federal_total_usd == null) return false;
+      if (f.st && org.state !== f.st) return false;
+      if (f.orgType && org.org_type !== f.orgType) return false;
+      if (f.track && org.track !== f.track && org.track !== "both") return false;
+      if (f.q && !`${org.name} ${note.largest_award || ""}`.toLowerCase().includes(f.q)) return false;
+      return true;
+    })
+    .sort((a, b) => b.note.federal_total_usd - a.note.federal_total_usd);
+}
+
+const money = n => "$" + Math.round(n).toLocaleString("en-US");
+
+function vendorRow({ org, note }) {
+  return `<tr>
+    <td class="num">${money(note.federal_total_usd)}</td>
+    <td><div class="org-name">${esc(org.name)}</div>
+        <div class="org-meta">${esc((note.agencies || []).slice(0, 2).join(", "))}</div></td>
+    <td class="num">${note.federal_awards ?? "—"}</td>
+    <td>${org.state ? esc(org.state)
+        : (note.states || []).length > 1 ? `<span class="org-meta">${note.states.length} states</span>`
+        : esc((note.states || [])[0] || "—")}</td>
+    <td class="org-meta">${esc(note.largest_award || "—")}</td>
+    <td><span class="pill ${note.likely_digital ? "type" : "flag"}">${
+      note.likely_digital ? "digital" : "print"}</span></td>
+  </tr>`;
+}
+
+function vendorCard({ org, note }) {
+  return `<article class="card">
+    <div class="card-head">
+      <div><div class="org-name">${esc(org.name)}</div>
+        <div class="card-meta">${esc(note.largest_award || "")}</div></div>
+      <div class="num"><b>${money(note.federal_total_usd)}</b></div>
+    </div>
+    <div class="card-pills">
+      <span class="pill type">${note.federal_awards} awards</span>
+      ${org.state ? `<span class="pill type">${esc(org.state)}</span>` : ""}
+      <span class="pill ${note.likely_digital ? "type" : "flag"}">${
+        note.likely_digital ? "digital" : "print"}</span>
+    </div>
+  </article>`;
+}
+
 function signalRow(s) {
   return `<tr>
     <td>${deadlinePill(s.deadline)}</td>
@@ -611,6 +680,15 @@ function render() {
       `${orgs.length.toLocaleString()} ${noun}` +
       (orgs.length > shown.length
         ? ` — showing the first ${shown.length}. Narrow the filters to see the rest.` : ".");
+  } else if (state.tab === "vendors") {
+    const vendors = federalVendors();
+    $("vendorBody").innerHTML = vendors.map(vendorRow).join("");
+    $("vendorCards").innerHTML = vendors.map(vendorCard).join("");
+    const spend = vendors.reduce((sum, v) => sum + v.note.federal_total_usd, 0);
+    $("countNote").textContent =
+      `${vendors.length} ${vendors.length === 1 ? "company" : "companies"} with federal book ` +
+      `awards, ${money(spend)} total. ` +
+      `No contacts yet — USAspending publishes none, so these are not on the main desk.`;
   } else {
     $("sigBody").innerHTML = signals.length ? signals.map(signalRow).join("")
       : `<tr><td colspan="6" class="empty-note" style="padding:16px">No open signals yet. The SAM.gov poller fills this once its API key is set.</td></tr>`;
@@ -621,10 +699,10 @@ function render() {
 
 function toggleTab(tab) {
   state.tab = tab;
-  $("tab-orgs").setAttribute("aria-selected", tab === "orgs");
-  $("tab-signals").setAttribute("aria-selected", tab === "signals");
-  $("panel-orgs").hidden = tab !== "orgs";
-  $("panel-signals").hidden = tab !== "signals";
+  for (const name of ["orgs", "signals", "vendors"]) {
+    $(`tab-${name}`).setAttribute("aria-selected", String(tab === name));
+    $(`panel-${name}`).hidden = tab !== name;
+  }
   render();
 }
 
@@ -638,6 +716,7 @@ function wire() {
   });
   $("tab-orgs").addEventListener("click", () => toggleTab("orgs"));
   $("tab-signals").addEventListener("click", () => toggleTab("signals"));
+  $("tab-vendors").addEventListener("click", () => toggleTab("vendors"));
 
   document.querySelectorAll("th.sortable").forEach(th => th.addEventListener("click", () => {
     const key = th.dataset.sort;

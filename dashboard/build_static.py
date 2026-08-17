@@ -29,7 +29,7 @@ PREVIEW = HERE / "preview.html"
 ORG_SQL = """
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
          o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
-         o.programs_flags AS flags,
+         o.programs_flags AS flags, o.notes AS notes, o.source AS source,
          o.coop_affiliations AS coops, o.status, o.claimed_by,
          (SELECT COUNT(*) FROM contacts c WHERE c.org_id = o.id) AS contacts,
          (SELECT COUNT(*) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
