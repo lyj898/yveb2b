@@ -268,7 +268,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-orgs" aria-selected="true">Organizations</button>
     <button class="tab" role="tab" id="tab-signals" aria-selected="false">Signals by deadline</button>
-    <button class="tab" role="tab" id="tab-vendors" aria-selected="false">Federal book vendors</button>
+    <button class="tab" role="tab" id="tab-vendors" aria-selected="false">Who holds the contracts</button>
   </div>
 
   <p class="count-note" id="countNote"></p>
@@ -319,6 +319,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
           <th>State</th>
           <th>Largest award</th>
           <th>Format</th>
+          <th>Role</th>
         </tr></thead>
         <tbody id="vendorBody"></tbody>
       </table>
@@ -642,7 +643,7 @@ function vendorDetailInner({ org, note }) {
 }
 
 function vendorDetail(entry) {
-  return `<tr class="detail"><td colspan="6"><div class="detail-inner">
+  return `<tr class="detail"><td colspan="7"><div class="detail-inner">
     <div style="grid-column: 1 / -1">${vendorDetailInner(entry)}</div></div></td></tr>`;
 }
 
@@ -658,6 +659,9 @@ function vendorRow({ org, note }) {
     <td class="org-meta">${esc(note.largest_award || "—")}</td>
     <td><span class="pill ${note.likely_digital ? "type" : "flag"}">${
       note.likely_digital ? "digital" : "print"}</span></td>
+    <td>${note.commercial_role === "distributor"
+      ? '<span class="pill open">counterparty</span>'
+      : '<span class="pill urgent">competitor</span>'}</td>
   </tr>` + (state.openVendors.has(org.id) ? vendorDetail({ org, note }) : "");
 }
 
@@ -673,6 +677,9 @@ function vendorCard({ org, note }) {
       ${org.state ? `<span class="pill type">${esc(org.state)}</span>` : ""}
       <span class="pill ${note.likely_digital ? "type" : "flag"}">${
         note.likely_digital ? "digital" : "print"}</span>
+      ${note.commercial_role === "distributor"
+        ? '<span class="pill open">counterparty</span>'
+        : '<span class="pill urgent">competitor</span>'}
     </div>
     ${state.openVendors.has(org.id)
       ? `<div class="card-detail">${vendorDetailInner({ org, note })}</div>`
@@ -726,10 +733,11 @@ function render() {
     $("vendorBody").innerHTML = vendors.map(vendorRow).join("");
     $("vendorCards").innerHTML = vendors.map(vendorCard).join("");
     const spend = vendors.reduce((sum, v) => sum + v.note.federal_total_usd, 0);
+    const counterparties = vendors.filter(v => v.note.commercial_role === "distributor").length;
     $("countNote").textContent =
-      `${vendors.length} ${vendors.length === 1 ? "company" : "companies"} with federal book ` +
-      `awards, ${money(spend)} total. Click a row for its awards. ` +
-      `No contacts yet — USAspending publishes none, so these are not on the main desk.`;
+      `${vendors.length} ${vendors.length === 1 ? "company" : "companies"} holding federal book ` +
+      `contracts, ${money(spend)} total — mostly incumbents you would be bidding against, ` +
+      `${counterparties} distributors you could sell to. Click a row for the awards.`;
   } else {
     $("sigBody").innerHTML = signals.length ? signals.map(signalRow).join("")
       : `<tr><td colspan="6" class="empty-note" style="padding:16px">No open signals yet. The SAM.gov poller fills this once its API key is set.</td></tr>`;

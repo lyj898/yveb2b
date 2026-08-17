@@ -14,6 +14,12 @@ Two filters keep the list honest:
 * **Publishers are skipped** — McGraw Hill and Elsevier show up here, but they are our
   suppliers, not counterparties for surplus stock. They are logged, not stored.
 
+A word on what these companies are. Winning a book contract makes a company an **incumbent
+supplier** — a competitor — not a buyer of surplus. Only the few whose awards describe
+distribution, jobbing or buyback are marked as counterparties; the rest are stored
+``disqualified``, which keeps them out of the lead counts while preserving them as market
+intelligence: when an agency's renewal appears in the signals list, this is who holds it now.
+
 Run:  python -m ingest.usaspending [--years 3] [--dry-run]
 """
 
@@ -58,6 +64,14 @@ PUBLISHER = re.compile(
     r"(mcgraw|elsevier|wolters|wiley|pearson|cengage|springer|sage publi|taylor & francis|"
     r"oxford university press|cambridge university press|houghton mifflin|scholastic|"
     r"publishing|publishers|press, inc|west publishing)", re.I)
+
+# What a vendor IS to us. Winning a federal book contract makes a company an incumbent
+# supplier — a competitor — not automatically a buyer of surplus stock. Only companies whose
+# awards describe distribution, jobbing or buyback are plausible Track B counterparties;
+# the rest are market intelligence: who holds the contract when a renewal appears.
+COUNTERPARTY = re.compile(
+    r"(buyback|buy-back|used book|textbook order|textbook procurement|distribution|"
+    r"jobber|wholesal|resale|remainder|surplus)", re.I)
 
 # Plenty of these awards are database access, not physical stock. We keep them — a serials
 # agent still moves print — but flag them so the print-first view can filter them out.
@@ -155,7 +169,7 @@ def aggregate(awards: list[dict]) -> dict[str, dict]:
 UPSERT_WITH_NAME = """
 INSERT INTO organizations
     (name, name_normalized, org_type, track, segment, state, source, status, programs_flags, notes)
-VALUES (:name, :name_normalized, 'wholesaler', 'B', :segment, :state, :source, 'new', '{}', :notes)
+VALUES (:name, :name_normalized, 'wholesaler', 'B', :segment, :state, :source, :status, '{}', :notes)
 """
 
 
@@ -210,7 +224,10 @@ def run(*, years: int = DEFAULT_YEARS, dry_run: bool = False) -> None:
                 continue
             try:
                 state = sorted(vendor["states"])[0] if len(vendor["states"]) == 1 else None
+                counterparty = bool(COUNTERPARTY.search(
+                    f"{vendor['top_description'] or ''} {vendor['name']}"))
                 notes = json.dumps({
+                    "commercial_role": "distributor" if counterparty else "incumbent_supplier",
                     "likely_digital": bool(DIGITAL.search(vendor["top_description"] or "")),
                     "federal_awards": vendor["awards"],
                     "federal_total_usd": round(vendor["total"], 2),
@@ -226,8 +243,13 @@ def run(*, years: int = DEFAULT_YEARS, dry_run: bool = False) -> None:
                 existing = conn.execute(
                     "SELECT id, source FROM organizations WHERE name_normalized = ? LIMIT 1",
                     (key,)).fetchone()
-                segment = (f"Federal book vendor — ${vendor['total']:,.0f} across "
-                           f"{vendor['awards']} award(s)")
+                segment = ((f"Federal book distributor — ${vendor['total']:,.0f} across "
+                            f"{vendor['awards']} award(s)") if counterparty else
+                           (f"Incumbent federal supplier (competitor) — ${vendor['total']:,.0f} "
+                            f"across {vendor['awards']} award(s)"))
+                # A competitor is not a lead. It stays in the database as intelligence, but
+                # 'disqualified' keeps it out of every count of who we can sell to.
+                status = "new" if counterparty else "disqualified"
                 if existing:
                     # Already known (often from the Track B seed list) — enrich, do not duplicate.
                     conn.execute(
@@ -237,8 +259,8 @@ def run(*, years: int = DEFAULT_YEARS, dry_run: bool = False) -> None:
                     counters["updated"] += 1
                 else:
                     conn.execute(UPSERT_WITH_NAME, {
-                        "name": vendor["name"], "name_normalized": key,
-                        "segment": segment, "state": state, "source": SOURCE, "notes": notes})
+                        "name": vendor["name"], "name_normalized": key, "segment": segment,
+                        "state": state, "source": SOURCE, "status": status, "notes": notes})
                     counters["new"] += 1
             except Exception as exc:  # noqa: BLE001
                 counters["errors"] += 1
@@ -258,15 +280,23 @@ def report(conn, *, dry_run: bool = False, vendors: dict | None = None) -> None:
 
     total = conn.execute(
         "SELECT COUNT(*) FROM organizations WHERE source = ?", (SOURCE,)).fetchone()[0]
-    print(f"\nFederal book vendors stored: {total}\n")
+    roles = dict(conn.execute(
+        "SELECT json_extract(notes, '$.commercial_role'), COUNT(*) FROM organizations"
+        "  WHERE source = ? GROUP BY 1", (SOURCE,)).fetchall())
+    print(f"\nFederal book vendors stored: {total} "
+          f"({roles.get('distributor', 0)} distributors we could sell to, "
+          f"{roles.get('incumbent_supplier', 0)} incumbent suppliers held as intelligence)\n")
     for row in conn.execute(
         "SELECT name, state, segment FROM organizations WHERE source = ?"
-        " ORDER BY CAST(json_extract(notes, '$.federal_total_usd') AS REAL) DESC LIMIT 20",
+        " ORDER BY CAST(json_extract(notes, '$.federal_total_usd') AS REAL) DESC LIMIT 12",
         (SOURCE,)
     ):
-        print(f"  {row['name'][:40]:40} {row['state'] or '--'}  {row['segment']}")
-    print(f"\nTrack B total: "
-          f"{conn.execute(chr(83) + 'ELECT COUNT(*) FROM organizations WHERE track IN (' + chr(39) + 'B' + chr(39) + ', ' + chr(39) + 'both' + chr(39) + ')').fetchone()[0]}")
+        print(f"  {row['name'][:34]:34} {row['state'] or '--'}  {row['segment'][:64]}")
+
+    counterparties = conn.execute(
+        "SELECT COUNT(*) FROM organizations WHERE track IN ('B', 'both')"
+        "   AND status != 'disqualified'").fetchone()[0]
+    print(f"\nTrack B counterparties (competitors excluded): {counterparties}")
 
 
 def main() -> None:
