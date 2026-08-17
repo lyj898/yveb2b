@@ -26,7 +26,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import common  # noqa: E402
 
 SOURCE = "wholesaler_contacts"
-MAX_PAGES_PER_SITE = 3
+MAX_PAGES_PER_SITE = 4
+
+# Tried directly when the home page exposes no contact-looking link — plenty of sites bury
+# these behind a JavaScript menu that BeautifulSoup never sees.
+FALLBACK_PATHS = ["/contact", "/contact-us", "/contacts", "/about/contact", "/customer-service",
+                  "/wholesale", "/sell-to-us", "/buyback", "/about-us"]
 
 log = logging.getLogger("textbook-leads.wholesaler-contacts")
 
@@ -44,6 +49,29 @@ IGNORE_EMAIL = re.compile(
 ROLE_PREFIXES = ("info", "sales", "wholesale", "purchasing", "orders", "buyback", "buying",
                  "buyer", "support", "service", "contact", "hello", "help", "customerservice")
 PHONE_RE = re.compile(r"(?:\+1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+
+# Role addresses (sales@, buyback@) are what we want: durable, and aimed at exactly this kind
+# of enquiry. Named individuals are kept only when something on the page ties them to buying,
+# and never in bulk — Mackin publishes 21 sales reps, none of whom purchase anything, and
+# hoovering up a staff roster is both useless to us and not what that page is for.
+MAX_NAMED_PER_COMPANY = 2
+BUYING_HINT = re.compile(r"(purchas|buyer|buying|buyback|acquisition|procure|wholesale|"
+                         r"sell to us|trade|bulk)", re.I)
+# A first.last shape is a person; the same shape built from role words is a mailbox
+# (supplies.international@, supplies.customerservice@). Anything else — inquire@, btsb@,
+# bookscs@, bulkseller@ — is a mailbox too, whatever it is called.
+PERSON_SHAPE = re.compile(r"^[a-z]{2,}[._][a-z]{2,}\d*$")
+ROLE_WORDS = re.compile(r"(info|sales|wholesale|purchas|order|buyback|buyer|support|service|"
+                        r"contact|help|supplies|subscription|customer|cs|inquire|inquiry|"
+                        r"bulk|trade|library|books|admin|office|team)", re.I)
+
+
+def is_mailbox(email: str) -> bool:
+    """True when the address is an organizational mailbox rather than a named person."""
+    local = email.split("@", 1)[0].lower()
+    if ROLE_WORDS.search(local):
+        return True
+    return not PERSON_SHAPE.match(local)
 
 
 def role_for(email: str) -> tuple[str, int]:
@@ -84,8 +112,14 @@ def candidate_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     return [url for _, url in scored[:MAX_PAGES_PER_SITE]]
 
 
-def harvest(soup: BeautifulSoup, page_url: str) -> tuple[dict[str, str], str | None]:
-    """Published mailto addresses -> nearest link text, plus the first phone number seen."""
+def harvest(soup: BeautifulSoup, page_url: str, *, own_domain: str | None = None
+            ) -> tuple[dict[str, str], str | None]:
+    """Published addresses -> nearest link text, plus the first phone number seen.
+
+    mailto: links are taken as published. Addresses written as plain text are taken too, but
+    only when they are on the company's own domain — that keeps a partner's or a customer's
+    address from being scraped off a page that merely mentions it.
+    """
     found: dict[str, str] = {}
     for anchor in soup.find_all("a", href=True):
         href = anchor["href"].strip()
@@ -98,6 +132,15 @@ def harvest(soup: BeautifulSoup, page_url: str) -> tuple[dict[str, str], str | N
         found.setdefault(email, label if label and "@" not in label else "")
 
     text = soup.get_text(" ", strip=True)
+    if own_domain:
+        root = own_domain.split(".")[-2] if own_domain.count(".") >= 1 else own_domain
+        for match in re.findall(r"[\w.+-]+@[\w-]+\.[\w.-]+", text):
+            email = match.strip().lower().rstrip(".")
+            if IGNORE_EMAIL.search(email):
+                continue
+            if root in email.rsplit("@", 1)[1]:
+                found.setdefault(email, "")
+
     phone_match = PHONE_RE.search(text)
     phone = phone_match.group(0).strip() if phone_match else None
     del page_url
@@ -114,7 +157,11 @@ def process(conn, org, *, dry_run: bool) -> int:
 
     soup = BeautifulSoup(response.text, "html.parser")
     pages = [(home, soup)]
-    for url in candidate_links(soup, response.url):
+    targets = candidate_links(soup, response.url)
+    if not targets:
+        # No contact-looking link in the markup — try the conventional paths.
+        targets = [f"https://{domain}{path}" for path in FALLBACK_PATHS[:MAX_PAGES_PER_SITE]]
+    for url in targets:
         page = common.polite_get(url, timeout=30, allow_redirects=True)
         if page is not None and page.status_code < 400:
             pages.append((url, BeautifulSoup(page.text, "html.parser")))
@@ -122,7 +169,7 @@ def process(conn, org, *, dry_run: bool) -> int:
     emails: dict[str, str] = {}
     phone = None
     for url, page_soup in pages:
-        found, page_phone = harvest(page_soup, url)
+        found, page_phone = harvest(page_soup, url, own_domain=domain)
         for email, label in found.items():
             emails.setdefault(email, label)
         phone = phone or page_phone
@@ -131,12 +178,26 @@ def process(conn, org, *, dry_run: bool) -> int:
         log.info("%-32s no published addresses on %d page(s)", org["name"], len(pages))
         return 0
 
-    log.info("%-32s %d address(es): %s", org["name"], len(emails),
-             ", ".join(sorted(emails)[:4]))
-    if dry_run:
-        return len(emails)
+    # Rank: organizational mailboxes first, then named individuals a buying hint vouches for.
+    generic = {e: l for e, l in emails.items() if is_mailbox(e)}
+    named = {e: l for e, l in emails.items() if e not in generic}
+    vouched = {e: l for e, l in named.items() if BUYING_HINT.search(f"{l} {e}")}
+    keep = generic | dict(list(vouched.items())[:MAX_NAMED_PER_COMPANY])
+    dropped = len(emails) - len(keep)
 
-    for email, label in emails.items():
+    if not keep:
+        log.info("%-32s %d address(es) found, all named staff with no buying role",
+                 org["name"], len(emails))
+        return 0
+
+    log.info("%-32s keeping %d of %d: %s", org["name"], len(keep), len(emails),
+             ", ".join(sorted(keep)[:4]))
+    if dropped:
+        log.info("%-32s   (skipped %d named staff addresses)", "", dropped)
+    if dry_run:
+        return len(keep)
+
+    for email, label in keep.items():
         role, generic = role_for(email)
         common.stage_record(conn, source=SOURCE, record_type="contact",
                             payload={"org": org["name"], "email": email, "label": label,
@@ -160,11 +221,13 @@ def run(*, limit: int | None = None, dry_run: bool = False) -> None:
     conn = common.connect()
     orgs = conn.execute(
         """SELECT id, name, website_domain FROM organizations
-            WHERE source = 'wholesalers' AND website_domain IS NOT NULL
-              AND json_extract(notes, '$.site_status') = 'live'
+            WHERE track IN ('B', 'both') AND status != 'disqualified'
+              AND website_domain IS NOT NULL
+              -- robots-blocked hosts are never fetched, not even to retry
+              AND COALESCE(json_extract(notes, '$.site_status'), 'live') != 'blocked'
             ORDER BY name""" + (" LIMIT ?" if limit else ""),
         (limit,) if limit else ()).fetchall()
-    log.info("%d Track B companies with a reachable site", len(orgs))
+    log.info("%d Track B counterparties to try (robots-blocked hosts excluded)", len(orgs))
 
     with common.ingest_run(conn, SOURCE) as counters:
         for org in orgs:

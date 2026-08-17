@@ -14,7 +14,7 @@ deliberately skipped. Updated as each ingester lands.
 | Florida MyFloridaMarketPlace — `POST vendor.myfloridamarketplace.com/mfmp/pub/search/bids` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | One query per keyword (an empty title returns nothing), de-duplicated on advertisementId |
 | SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open), `contacts` (25 contracting officers) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day**. `--reprocess` re-normalizes staged notices for free |
 | Track B seed list — `ingest/wholesalers.py` | `organizations` (30 wholesalers, jobbers, exporters) | Curated, checked by DNS + HTTP | Monthly | No registry exists for this trade; entries are stored with a `site_status` and only dropped when the domain stops resolving |
-| Track B published contacts — `ingest/wholesaler_contacts.py` | `contacts` (27 addresses, 8 companies) | Company contact pages, robots-checked | Monthly | Only `mailto:` links the company published; nothing guessed, robots-blocked hosts never fetched |
+| Track B published contacts — `ingest/wholesaler_contacts.py` | `contacts` (43 addresses, 9 of 32 companies) | Company contact pages, robots-checked | Monthly | Published `mailto:` links plus same-domain addresses in page text; organizational mailboxes only, robots-blocked hosts never fetched |
 | USAspending federal awards — `POST api.usaspending.gov/api/v2/search/spending_by_award/` | `organizations` (3 distributors, 168 competitors held as intelligence) | Public API, **no key** | Monthly | PSC 7610/7630/7640/7670 + NAICS 424920 over 3 years; awards de-duplicated across queries, publishers excluded |
 
 ## Skipped / blocked
@@ -67,12 +67,24 @@ current domain found by hand, or removal.
 A blocked site is not evidence against a company we want to *sell to*, so `blocked` and
 `unreachable` are recorded and kept; only a domain with no DNS record is disqualifying.
 
-`ingest/wholesaler_contacts.py` then reads the contact pages of the 14 that answer, following
-at most three contact/wholesale/buyback links per site and collecting only addresses the
-company published as `mailto:` links — 27 addresses across 8 companies, including
-`buybacks@textbookrush.com` and `bulkseller@textbookrush.com`. Six of the 14 publish no
-address at all and use a web form instead; those, plus the 16 whose sites block us, remain a
-manual job.
+`ingest/wholesaler_contacts.py` reads the contact pages of every counterparty whose host is
+not robots-blocked, following contact/wholesale/buyback links and falling back to conventional
+paths (`/contact`, `/sell-to-us`, `/buyback`) when the markup exposes none. It takes `mailto:`
+links plus addresses written in page text **on the company's own domain**, so a partner's or
+customer's address is never picked up in passing.
+
+**Organizational mailboxes only.** Mackin publishes its full 21-person sales roster; harvesting
+that is useless to us — reps do not purchase — and not what the page is for. An address is kept
+when it is a mailbox (`bids@`, `buybacks@`, `bulkseller@`, `inquire@`) and a named individual
+only when the page ties them to buying, capped at two per company. 23 of Mackin's 39 addresses
+were skipped on that rule.
+
+Coverage: **9 of 32 counterparties, 43 addresses.** The best of them are exactly on target —
+`bids@mackin.com`, `buybacks@textbookrush.com`, `bulkseller@textbookrush.com`. Of the 23 with
+none: 13 are robots-blocked (never fetched), 4 refuse connections from us at the network level
+(Baker & Taylor, Majors, NBN, eCampus — the domains resolve but time out), 4 publish only a web
+form (Follett, IPG, Akademos, MBS, World of Books), and 2 have no domain at all. Those are a
+phone-call list, not a scraping problem.
 
 ## Finding Track B systematically
 
