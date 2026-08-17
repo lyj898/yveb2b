@@ -32,6 +32,12 @@ API_URL = "https://api.sam.gov/opportunities/v2/search"
 PAGE_SIZE = 1000
 MAX_PAGES = 20
 
+# Non-federal public API keys are capped at 10 requests PER DAY (federal keys get 1,000),
+# and a paged query spends one request per page. The budget is enforced here rather than
+# discovered as a 429 halfway through a run, and whatever it cuts is logged — a silent
+# truncation would look exactly like "no solicitations today".
+REQUEST_BUDGET = 10
+
 # --- Filter config — edit these freely; they are the whole targeting surface -------------
 #
 # NAICS: 511130 book publishers, 424920 book/periodical merchant wholesalers,
@@ -46,7 +52,8 @@ NAICS_CODES = ["511130", "424920", "459210"]
 PSC_CODES = ["7610", "7630", "7640", "7670", "76"]
 
 # Free-text fallback: SAM.gov classifies inconsistently, so a title sweep catches notices
-# that carry no useful NAICS/PSC. Each term is a separate API call.
+# that carry no useful NAICS/PSC. Each term is a separate API call, and nine of them do not
+# fit a 10-request budget — so titles are opt-in (--with-titles), for a weekly deeper run.
 TITLE_KEYWORDS = [
     "textbook", "textbooks", "library books", "book supply", "course materials",
     "educational materials", "nursing textbooks", "medical books", "periodicals",
@@ -77,12 +84,33 @@ def api_key() -> str:
     return key
 
 
-def search(params: dict, *, key: str) -> list[dict]:
+class Budget:
+    """Counts API requests so a run cannot exceed the daily cap."""
+
+    def __init__(self, total: int = REQUEST_BUDGET) -> None:
+        self.total = total
+        self.spent = 0
+
+    def take(self) -> bool:
+        if self.spent >= self.total:
+            return False
+        self.spent += 1
+        return True
+
+    @property
+    def left(self) -> int:
+        return max(0, self.total - self.spent)
+
+
+def search(params: dict, *, key: str, budget: Budget) -> list[dict]:
     """Page through /opportunities/v2/search and return every notice matched."""
     import requests
 
     results: list[dict] = []
     for page in range(MAX_PAGES):
+        if not budget.take():
+            log.warning("request budget exhausted mid-query — results may be incomplete")
+            break
         query = params | {
             "api_key": key,
             "limit": PAGE_SIZE,
@@ -109,7 +137,7 @@ def search(params: dict, *, key: str) -> list[dict]:
     return results
 
 
-def build_queries(days: int) -> list[dict]:
+def build_queries(days: int, *, with_titles: bool = False) -> list[dict]:
     """One query per filter dimension. SAM.gov ANDs its filter params, so NAICS, PSC and
     title sweeps have to be issued separately or they'd cancel each other out."""
     today = dt.date.today()
@@ -120,7 +148,8 @@ def build_queries(days: int) -> list[dict]:
     }
     queries = [window | {"ncode": code} for code in NAICS_CODES]
     queries += [window | {"ccode": code} for code in PSC_CODES]
-    queries += [window | {"title": term} for term in TITLE_KEYWORDS]
+    if with_titles:
+        queries += [window | {"title": term} for term in TITLE_KEYWORDS]
     return queries
 
 
@@ -251,10 +280,11 @@ def expire_stale(conn) -> int:
 # ---------------------------------------------------------------------------
 
 def run(*, days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False,
-        limit: int | None = None) -> None:
-    queries = build_queries(days)
+        limit: int | None = None, with_titles: bool = False) -> None:
+    queries = build_queries(days, with_titles=with_titles)
     if dry_run:
-        print(f"{len(queries)} queries would be issued over a {days}-day window:\n")
+        print(f"{len(queries)} queries would be issued over a {days}-day window "
+              f"(budget {REQUEST_BUDGET} requests/day):\n")
         for query in queries:
             focus = {k: v for k, v in query.items() if k in ("ncode", "ccode", "title")}
             print(f"  {focus}  posted {query['postedFrom']} -> {query['postedTo']}")
@@ -263,14 +293,23 @@ def run(*, days: int = DEFAULT_LOOKBACK_DAYS, dry_run: bool = False,
 
     key = api_key()
     conn = common.connect()
+    budget = Budget()
     seen_ids: set[str] = set()
+
+    if len(queries) > REQUEST_BUDGET:
+        log.warning("%d queries against a %d-request budget — the last %d will be skipped",
+                    len(queries), REQUEST_BUDGET, len(queries) - REQUEST_BUDGET)
 
     with common.ingest_run(conn, SOURCE) as counters:
         for query in queries:
             focus = {k: v for k, v in query.items() if k in ("ncode", "ccode", "title")}
-            log.info("query %s", focus)
+            if budget.left == 0:
+                log.warning("skipping %s — daily request budget spent", focus)
+                counters["errors"] += 1
+                continue
+            log.info("query %s (budget left %d)", focus, budget.left)
             try:
-                notices = search(query, key=key)
+                notices = search(query, key=key, budget=budget)
             except Exception as exc:  # noqa: BLE001 — one bad query must not kill the run
                 counters["errors"] += 1
                 log.warning("query %s failed: %s: %s", focus, type(exc).__name__, exc)
@@ -322,9 +361,11 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="stop after N notices (smoke test)")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the queries that would be issued; no API key needed")
+    parser.add_argument("--with-titles", action="store_true",
+                        help="also sweep TITLE_KEYWORDS — exceeds a 10-request/day key")
     args = parser.parse_args()
     common.setup_logging()
-    run(days=args.days, dry_run=args.dry_run, limit=args.limit)
+    run(days=args.days, dry_run=args.dry_run, limit=args.limit, with_titles=args.with_titles)
 
 
 if __name__ == "__main__":

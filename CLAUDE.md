@@ -73,7 +73,8 @@ sending email · CRM integration.
 
 - [x] **Stage 1** — schema + repo scaffold
 - [x] **Stage 2** — IPEDS import — 5,963 active institutions loaded from IPEDS 2024
-- [~] **Stage 3** — SAM.gov poller written and dry-run clean; parked, no API key available
+- [x] **Stage 3** — SAM.gov poller live; 28 notices, 13 open. Non-federal key = 10 requests/day,
+      so the daily run issues 8 queries and title sweeps are opt-in (`--with-titles`)
 - [~] **Stage 4** — consortium members live (OhioLINK, CARLI); GA and FL portals live;
       bookstore directories blocked or personal-data only; TX/NY-OGS robots-blocked;
       CA and NY-SCR endpoints still to map. See SOURCES.md.

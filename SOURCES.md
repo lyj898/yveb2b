@@ -12,12 +12,7 @@ deliberately skipped. Updated as each ingester lands.
 | CARLI participating libraries — `carli.illinois.edu/membership/mem-libs` | `organizations` | Public HTML, robots-allowed | Quarterly | Names + membership class only; 106 matched, 16 created |
 | Georgia Procurement Registry — `POST ssl.doas.state.ga.us/gpr/eventSearch` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | 515 open events statewide; relevance filter applied locally because the portal's title filter misses rephrasings |
 | Florida MyFloridaMarketPlace — `POST vendor.myfloridamarketplace.com/mfmp/pub/search/bids` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | One query per keyword (an empty title returns nothing), de-duplicated on advertisementId |
-
-## Built, not yet running
-
-| Source | Feeds | Blocker |
-| --- | --- | --- |
-| SAM.gov Get Opportunities v2 | `signals` | Needs `SAM_GOV_API_KEY`. Poller and daily workflow are written and dry-run clean. |
+| SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day** |
 
 ## Skipped / blocked
 
@@ -58,8 +53,14 @@ ever touched.
 
 ## Signal yield, measured
 
-Open, textbook-relevant public solicitations are genuinely rare on any given day. As of
-2026-08-14 the two live state portals together hold **two**: 515 open Georgia events and 190
-Florida advertisements matching our keywords produced 1 signal each. That is the market, not
-a parsing failure — the pollers exist to catch the ones that do appear. Reaching the Phase 1
-target of 20+ open signals needs SAM.gov (federal VA/DoD/BOP buys) plus the remaining states.
+State portals are thin: on 2026-08-14, 515 open Georgia events and 190 Florida advertisements
+produced one relevant signal each. That is the market, not a parsing failure.
+
+SAM.gov is where the volume is. The first live pull (2026-08-17, 30-day window) returned 28
+notices, **13 of them open with a future deadline** — library subscriptions and periodicals
+for Air Force education services, NOAA's Elsevier ScienceDirect renewal, NIH journal hosting,
+USDA Annual Reviews. Combined open signals with future deadlines: **14**.
+
+The binding constraint is the key, not the filters: a non-federal API key allows 10 requests
+per day, and each paged query spends one. The poller enforces that budget itself and logs
+anything it drops, because a silent truncation is indistinguishable from a quiet day.
