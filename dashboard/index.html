@@ -200,6 +200,10 @@ tbody tr.row { cursor: pointer; }
 .detail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .detail li { font-size: 13.5px; }
 .empty-note { color: var(--ink-3); font-size: 13px; font-style: italic; }
+.card-detail { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 12px; }
+.card-detail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13.5px; }
+.card-detail h3 { font-size: 12px; font-family: var(--mono); text-transform: uppercase;
+  letter-spacing: .07em; color: var(--ink-3); font-weight: 500; margin-bottom: 5px; }
 /* --- cards (narrow screens) --------------------------------------------- */
 .cards { display: none; }
 .card {
@@ -542,7 +546,7 @@ function orgRow(o) {
   </tr>` + (state.open.has(o.id) ? detailRow(o) : "");
 }
 
-function detailRow(o) {
+function orgDetailInner(o) {
   const contacts = DATA.contacts.filter(c => c.org_id === o.id);
   const signals = DATA.signals.filter(s => s.org_id === o.id);
   const coops = parseJson(o.coops, []);
@@ -562,15 +566,17 @@ function detailRow(o) {
     </li>`).join("")}</ul>`
     : '<p class="empty-note">No open solicitations matched to this organization.</p>';
 
-  return `<tr class="detail"><td colspan="7"><div class="detail-inner">
-    <div><h3>Profile</h3>
+  return `<div><h3>Profile</h3>
       <p class="org-meta">${esc(o.segment || "")}
       ${o.size ? "<br>" + num(o.size) + " " + esc((o.size_type || "").replace("_", " ")) : ""}
       ${o.domain ? '<br><a href="https://' + esc(o.domain) + '" target="_blank" rel="noopener">' + esc(o.domain) + "</a>" : ""}
       ${coops.length ? "<br>Co-ops: " + esc(coops.join(", ")) : ""}</p></div>
     <div><h3>Contacts (${contacts.length})</h3>${contactHtml}</div>
-    <div><h3>Open signals (${signals.length})</h3>${signalHtml}</div>
-  </div></td></tr>`;
+    <div><h3>Open signals (${signals.length})</h3>${signalHtml}</div>`;
+}
+
+function detailRow(o) {
+  return `<tr class="detail"><td colspan="7"><div class="detail-inner">${orgDetailInner(o)}</div></td></tr>`;
 }
 
 function orgCard(o) {
@@ -586,6 +592,9 @@ function orgCard(o) {
       ${o.open_signals ? deadlinePill(o.deadline) : ""}
       ${o.contacts ? `<span class="pill type">${o.contacts} contact${o.contacts > 1 ? "s" : ""}</span>` : ""}
     </div>
+    ${state.open.has(o.id)
+      ? `<div class="card-detail">${orgDetailInner(o)}</div>`
+      : '<p class="org-meta" style="margin-top:8px">Tap for contacts and signals</p>'}
   </article>`;
 }
 
@@ -609,7 +618,7 @@ function federalVendors() {
 
 const money = n => "$" + Math.round(n).toLocaleString("en-US");
 
-function vendorDetail({ org, note }) {
+function vendorDetailInner({ org, note }) {
   const awards = note.awards_detail || [];
   const rows = awards.map(a => `<li>
       <strong>${money(a.amount)}</strong>
@@ -624,14 +633,17 @@ function vendorDetail({ org, note }) {
   const note_line = note.federal_awards > shown
     ? `<p class="empty-note">Showing the ${shown} largest of ${note.federal_awards} awards.</p>` : "";
 
-  return `<tr class="detail"><td colspan="6"><div class="detail-inner">
-    <div style="grid-column: 1 / -1">
+  return `<div>
       <h3>Awards (${note.federal_awards})</h3>
       ${shown ? `<ul>${rows}</ul>${note_line}`
               : '<p class="empty-note">No award detail stored — re-run ingest.usaspending.</p>'}
       <p class="org-meta" style="margin-top:8px">Agencies: ${esc((note.agencies || []).join(", "))}</p>
-    </div>
-  </div></td></tr>`;
+    </div>`;
+}
+
+function vendorDetail(entry) {
+  return `<tr class="detail"><td colspan="6"><div class="detail-inner">
+    <div style="grid-column: 1 / -1">${vendorDetailInner(entry)}</div></div></td></tr>`;
 }
 
 function vendorRow({ org, note }) {
@@ -650,7 +662,7 @@ function vendorRow({ org, note }) {
 }
 
 function vendorCard({ org, note }) {
-  return `<article class="card">
+  return `<article class="card" data-vendor="${org.id}">
     <div class="card-head">
       <div><div class="org-name">${esc(org.name)}</div>
         <div class="card-meta">${esc(note.largest_award || "")}</div></div>
@@ -662,6 +674,9 @@ function vendorCard({ org, note }) {
       <span class="pill ${note.likely_digital ? "type" : "flag"}">${
         note.likely_digital ? "digital" : "print"}</span>
     </div>
+    ${state.openVendors.has(org.id)
+      ? `<div class="card-detail">${vendorDetailInner({ org, note })}</div>`
+      : '<p class="org-meta" style="margin-top:8px">Tap for awards</p>'}
   </article>`;
 }
 
