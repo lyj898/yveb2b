@@ -66,7 +66,11 @@ DIGITAL = re.compile(r"(online|electronic|e-?resource|database|web|digital|acces
 
 FIELDS = ["Award ID", "Recipient Name", "Awarding Agency", "Awarding Sub Agency",
           "Award Amount", "Description", "Place of Performance State Code", "Start Date",
-          "recipient_id"]
+          "End Date", "recipient_id"]
+
+# Individual awards kept per vendor, largest first — this is the evidence behind the total.
+AWARDS_KEPT = 10
+AWARD_URL = "https://www.usaspending.gov/award/{internal_id}"
 
 
 def query(body: dict) -> list[dict]:
@@ -110,7 +114,8 @@ def aggregate(awards: list[dict]) -> dict[str, dict]:
     """One entry per recipient: totals, states, agencies and the largest award seen."""
     vendors: dict[str, dict] = defaultdict(
         lambda: {"name": None, "total": 0.0, "awards": 0, "states": set(),
-                 "agencies": set(), "top_description": None, "top_amount": 0.0})
+                 "agencies": set(), "top_description": None, "top_amount": 0.0,
+                 "detail": []})
     for award in awards:
         name = (award.get("Recipient Name") or "").strip()
         if not name:
@@ -128,6 +133,22 @@ def aggregate(awards: list[dict]) -> dict[str, dict]:
         if amount >= vendor["top_amount"]:
             vendor["top_amount"] = amount
             vendor["top_description"] = (award.get("Description") or "").strip()[:200]
+        vendor["detail"].append({
+            "award_id": award.get("Award ID"),
+            "amount": amount,
+            "start": (award.get("Start Date") or "")[:10] or None,
+            "end": (award.get("End Date") or "")[:10] or None,
+            "agency": award.get("Awarding Agency"),
+            "sub_agency": award.get("Awarding Sub Agency"),
+            "state": award.get("Place of Performance State Code"),
+            "description": (award.get("Description") or "").strip()[:240],
+            "url": (AWARD_URL.format(internal_id=award["generated_internal_id"])
+                    if award.get("generated_internal_id") else None),
+        })
+
+    for vendor in vendors.values():
+        vendor["detail"].sort(key=lambda a: -a["amount"])
+        del vendor["detail"][AWARDS_KEPT:]
     return vendors
 
 
@@ -154,8 +175,27 @@ def run(*, years: int = DEFAULT_YEARS, dry_run: bool = False) -> None:
             log.info("%-12s %d awards", focus[0], len(batch))
             raw.extend(batch)
 
+        # One award can match several of our queries (a textbook contract carries both
+        # PSC 7610 and NAICS 424920). Without this, its value is counted once per query and
+        # every vendor total is inflated.
+        unique: dict[str, dict] = {}
+        for award in raw:
+            key = str(award.get("generated_internal_id") or award.get("Award ID") or id(award))
+            unique.setdefault(key, award)
+        duplicates = len(raw) - len(unique)
+        if duplicates:
+            log.info("dropped %d awards matched by more than one query", duplicates)
+        raw = list(unique.values())
+
+        for award in raw:
+            common.stage_record(
+                conn, source=SOURCE, record_type="organization", payload=award,
+                source_key=str(award.get("generated_internal_id") or award.get("Award ID")),
+                source_url=API_URL)
+        conn.commit()
+
         relevant = [a for a in raw if is_relevant(a)]
-        log.info("%d awards, %d read like book buys", len(raw), len(relevant))
+        log.info("%d awards staged, %d read like book buys", len(raw), len(relevant))
 
         vendors = aggregate(relevant)
         publishers = {k: v for k, v in vendors.items() if PUBLISHER.search(v["name"])}
@@ -177,6 +217,7 @@ def run(*, years: int = DEFAULT_YEARS, dry_run: bool = False) -> None:
                     "agencies": sorted(vendor["agencies"])[:5],
                     "largest_award": vendor["top_description"],
                     "states": sorted(vendor["states"])[:5],
+                    "awards_detail": vendor["detail"],
                 })
                 common.stage_record(conn, source=SOURCE, record_type="organization",
                                     payload={"name": vendor["name"], **json.loads(notes)},

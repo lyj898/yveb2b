@@ -439,7 +439,8 @@ document.addEventListener("click", e => {
 });
 
 /* --- filtering ----------------------------------------------------------- */
-const state = { tab: "orgs", sort: "deadline", dir: -1, sigSort: "deadline", open: new Set() };
+const state = { tab: "orgs", sort: "deadline", dir: -1, sigSort: "deadline",
+                open: new Set(), openVendors: new Set() };
 
 function filters() {
   return {
@@ -608,8 +609,33 @@ function federalVendors() {
 
 const money = n => "$" + Math.round(n).toLocaleString("en-US");
 
+function vendorDetail({ org, note }) {
+  const awards = note.awards_detail || [];
+  const rows = awards.map(a => `<li>
+      <strong>${money(a.amount)}</strong>
+      <span class="org-meta"> · ${esc(a.start || "?")}${a.end ? " → " + esc(a.end) : ""}</span><br>
+      ${a.url ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.description || a.award_id || "award")}</a>`
+              : esc(a.description || a.award_id || "award")}<br>
+      <span class="org-meta">${esc(a.sub_agency || a.agency || "")}${a.state ? " · " + esc(a.state) : ""}</span>
+      ${a.award_id ? " " + copyBtn(a.award_id, a.award_id) : ""}
+    </li>`).join("");
+
+  const shown = awards.length;
+  const note_line = note.federal_awards > shown
+    ? `<p class="empty-note">Showing the ${shown} largest of ${note.federal_awards} awards.</p>` : "";
+
+  return `<tr class="detail"><td colspan="6"><div class="detail-inner">
+    <div style="grid-column: 1 / -1">
+      <h3>Awards (${note.federal_awards})</h3>
+      ${shown ? `<ul>${rows}</ul>${note_line}`
+              : '<p class="empty-note">No award detail stored — re-run ingest.usaspending.</p>'}
+      <p class="org-meta" style="margin-top:8px">Agencies: ${esc((note.agencies || []).join(", "))}</p>
+    </div>
+  </div></td></tr>`;
+}
+
 function vendorRow({ org, note }) {
-  return `<tr>
+  return `<tr class="row" data-vendor="${org.id}">
     <td class="num">${money(note.federal_total_usd)}</td>
     <td><div class="org-name">${esc(org.name)}</div>
         <div class="org-meta">${esc((note.agencies || []).slice(0, 2).join(", "))}</div></td>
@@ -620,7 +646,7 @@ function vendorRow({ org, note }) {
     <td class="org-meta">${esc(note.largest_award || "—")}</td>
     <td><span class="pill ${note.likely_digital ? "type" : "flag"}">${
       note.likely_digital ? "digital" : "print"}</span></td>
-  </tr>`;
+  </tr>` + (state.openVendors.has(org.id) ? vendorDetail({ org, note }) : "");
 }
 
 function vendorCard({ org, note }) {
@@ -687,7 +713,7 @@ function render() {
     const spend = vendors.reduce((sum, v) => sum + v.note.federal_total_usd, 0);
     $("countNote").textContent =
       `${vendors.length} ${vendors.length === 1 ? "company" : "companies"} with federal book ` +
-      `awards, ${money(spend)} total. ` +
+      `awards, ${money(spend)} total. Click a row for its awards. ` +
       `No contacts yet — USAspending publishes none, so these are not on the main desk.`;
   } else {
     $("sigBody").innerHTML = signals.length ? signals.map(signalRow).join("")
@@ -727,9 +753,11 @@ function wire() {
 
   document.addEventListener("click", e => {
     const row = e.target.closest("tr.row, article.card");
-    if (!row || !row.dataset.org) return;
-    const id = +row.dataset.org;
-    state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    if (!row) return;
+    const set = row.dataset.vendor ? state.openVendors : state.open;
+    const id = +(row.dataset.vendor || row.dataset.org || 0);
+    if (!id) return;
+    set.has(id) ? set.delete(id) : set.add(id);
     render();
   });
 }
