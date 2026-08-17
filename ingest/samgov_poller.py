@@ -233,6 +233,41 @@ ON CONFLICT (source, source_key) WHERE source_key IS NOT NULL DO UPDATE SET
 """
 
 
+def upsert_contacts(conn, org_id: int | None, notice: dict) -> int:
+    """Store the notice's contracting point(s) of contact.
+
+    These are the officials SAM.gov publishes so vendors can respond to the solicitation —
+    a purchasing-function contact at a buying organization, which is exactly what Track A
+    targets. Primary contacts are kept; secondary ones are stored too but marked in the title.
+    """
+    written = 0
+    if not org_id:
+        return written
+    for poc in notice.get("pointOfContact") or []:
+        email = (poc.get("email") or "").strip().lower()
+        if not email or "@" not in email:
+            continue
+        kind = (poc.get("type") or "").strip().lower()
+        # Some agencies paste a paragraph of instructions into fullName (DLA does this).
+        # A name that long is not a name — keep the address, drop the prose.
+        name = " ".join((poc.get("fullName") or "").split())
+        if len(name) > 60:
+            name = None
+        conn.execute(
+            """INSERT INTO contacts (org_id, name, title, role_type, email, phone,
+                                     is_generic, source, source_url)
+               VALUES (?, ?, ?, 'procurement_officer', ?, ?, 0, ?, ?)
+               ON CONFLICT (org_id, email) WHERE email IS NOT NULL DO UPDATE SET
+                   name         = COALESCE(excluded.name, contacts.name),
+                   phone        = COALESCE(excluded.phone, contacts.phone),
+                   date_updated = datetime('now')""",
+            (org_id, name or None,
+             f"Contracting point of contact ({kind})" if kind else "Contracting point of contact",
+             email, (poc.get("phone") or "").strip() or None, SOURCE, notice.get("uiLink")))
+        written += 1
+    return written
+
+
 def normalize_notice(conn, notice: dict, counters: dict) -> None:
     notice_id = notice.get("noticeId")
     common.stage_record(
@@ -249,8 +284,11 @@ def normalize_notice(conn, notice: dict, counters: dict) -> None:
     existed = conn.execute(
         "SELECT 1 FROM signals WHERE source = ? AND source_key = ?", (SOURCE, notice_id)).fetchone()
 
+    org_id = match_or_create_org(conn, notice)
+    upsert_contacts(conn, org_id, notice)
+
     conn.execute(UPSERT_SIGNAL, {
-        "org_id": match_or_create_org(conn, notice),
+        "org_id": org_id,
         "org_name_raw": _agency_name(notice),
         "signal_type": signal_type,
         "title": (notice.get("title") or "Untitled solicitation").strip(),
@@ -275,6 +313,31 @@ def expire_stale(conn) -> int:
         "UPDATE signals SET status = 'expired', date_updated = datetime('now')"
         " WHERE status = 'open' AND deadline IS NOT NULL AND deadline < date('now')")
     return cur.rowcount
+
+
+def reprocess(conn) -> None:
+    """Re-normalize every staged notice without touching the API.
+
+    This is what staging raw payloads is for: when normalization changes — as it did when
+    contacts were added — the whole history can be rebuilt for free, which matters when the
+    key only allows 10 requests a day.
+    """
+    rows = conn.execute(
+        "SELECT raw_payload FROM source_records WHERE source = ? ORDER BY id", (SOURCE,)
+    ).fetchall()
+    log.info("re-normalizing %d staged notices (no API requests)", len(rows))
+
+    with common.ingest_run(conn, f"{SOURCE}:reprocess") as counters:
+        for row in rows:
+            counters["seen"] += 1
+            try:
+                normalize_notice(conn, json.loads(row[0]), counters)
+            except Exception as exc:  # noqa: BLE001
+                counters["errors"] += 1
+                log.warning("reprocess failed: %s: %s", type(exc).__name__, exc)
+        expire_stale(conn)
+        conn.commit()
+    report(conn)
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +426,13 @@ def main() -> None:
                         help="print the queries that would be issued; no API key needed")
     parser.add_argument("--with-titles", action="store_true",
                         help="also sweep TITLE_KEYWORDS — exceeds a 10-request/day key")
+    parser.add_argument("--reprocess", action="store_true",
+                        help="re-normalize staged notices; spends no API requests")
     args = parser.parse_args()
     common.setup_logging()
+    if args.reprocess:
+        reprocess(common.connect())
+        return
     run(days=args.days, dry_run=args.dry_run, limit=args.limit, with_titles=args.with_titles)
 
 

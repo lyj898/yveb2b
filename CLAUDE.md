@@ -76,8 +76,9 @@ sending email · CRM integration.
 - [x] **Stage 3** — SAM.gov poller live; 28 notices, 13 open. Non-federal key = 10 requests/day,
       so the daily run issues 8 queries and title sweeps are opt-in (`--with-titles`)
 - [~] **Stage 4** — consortium members live (OhioLINK, CARLI); GA and FL portals live;
-      bookstore directories blocked or personal-data only; TX/NY-OGS robots-blocked;
-      CA and NY-SCR endpoints still to map. See SOURCES.md.
+      Track B seed list live (30 wholesalers/jobbers/exporters); bookstore directories blocked
+      or personal-data only; TX/NY-OGS robots-blocked; CA and NY-SCR endpoints still to map.
+      See SOURCES.md.
 - [x] **Stage 5** — dedupe (dry-run by default), email-verification stub, 0–100 scoring
 - [x] **Stage 6** — single-file sql.js dashboard + GitHub Pages workflow
 

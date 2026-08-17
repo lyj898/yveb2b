@@ -12,7 +12,8 @@ deliberately skipped. Updated as each ingester lands.
 | CARLI participating libraries — `carli.illinois.edu/membership/mem-libs` | `organizations` | Public HTML, robots-allowed | Quarterly | Names + membership class only; 106 matched, 16 created |
 | Georgia Procurement Registry — `POST ssl.doas.state.ga.us/gpr/eventSearch` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | 515 open events statewide; relevance filter applied locally because the portal's title filter misses rephrasings |
 | Florida MyFloridaMarketPlace — `POST vendor.myfloridamarketplace.com/mfmp/pub/search/bids` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | One query per keyword (an empty title returns nothing), de-duplicated on advertisementId |
-| SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day** |
+| SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open), `contacts` (25 contracting officers) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day**. `--reprocess` re-normalizes staged notices for free |
+| Track B seed list — `ingest/wholesalers.py` | `organizations` (30 wholesalers, jobbers, exporters) | Curated, checked by DNS + HTTP | Quarterly | No registry exists for this trade; entries are stored with a `site_status` and only dropped when the domain stops resolving |
 
 ## Skipped / blocked
 
@@ -50,6 +51,22 @@ Every fetch goes through `common.polite_get`: `robots.txt` is checked with our r
 User-Agent (2xx parses the rules, 404 means no rules, 401/403 means the host is closed to us),
 requests to one host are spaced 4 seconds apart, and no authenticated or paywalled page is
 ever touched.
+
+## Track B has no registry
+
+There is no IPEDS for book wholesalers. NACS and the ABA block us, and the ranked
+"directories" are lead-generation spam. The real universe is also small — dozens of
+companies. So `ingest/wholesalers.py` carries a named seed list (Ingram, Baker & Taylor,
+Rittenhouse, Matthews, MBS, ThriftBooks, Better World, Half Price, Alibris…) and checks each
+domain on every run. Of 31 entries: 14 answered, 12 refuse bots, 4 timed out, and 1
+(`nebook.com`, Nebraska Book Company) no longer resolves and was dropped — it needs its
+current domain found by hand, or removal.
+
+A blocked site is not evidence against a company we want to *sell to*, so `blocked` and
+`unreachable` are recorded and kept; only a domain with no DNS record is disqualifying.
+
+These 30 have no contacts yet. Their buyer contacts sit on inconsistent "contact us" pages,
+and a guessed `info@` address is not a contact — this is a short, high-value manual list.
 
 ## Signal yield, measured
 
