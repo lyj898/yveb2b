@@ -1,0 +1,53 @@
+name: Directories and Track B (monthly)
+
+# Consortium member lists and the Track B company list change slowly — monthly is enough,
+# and it keeps us well inside every source's politeness budget.
+
+on:
+  schedule:
+    - cron: "30 6 8 * *"       # 8th of the month, offset from the IPEDS job on the 1st
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leads-db
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # Each source is independent — one site being down must not skip the others.
+      - name: Library consortium members
+        continue-on-error: true
+        run: python -m ingest.coop_members
+
+      - name: Track B companies
+        continue-on-error: true
+        run: python -m ingest.wholesalers
+
+      - name: Track B published contacts
+        continue-on-error: true
+        run: python -m ingest.wholesaler_contacts
+
+      - name: Rescore and rebuild the dashboard data
+        run: |
+          python -m enrich.score
+          python dashboard/build_static.py
+
+      - name: Commit refreshed database
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add db/leads.db dashboard/leads.db
+          git diff --staged --quiet || git commit -m "Directory refresh $(date -u +%Y-%m-%d)"
+          git push

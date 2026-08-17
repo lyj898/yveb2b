@@ -13,7 +13,8 @@ deliberately skipped. Updated as each ingester lands.
 | Georgia Procurement Registry — `POST ssl.doas.state.ga.us/gpr/eventSearch` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | 515 open events statewide; relevance filter applied locally because the portal's title filter misses rephrasings |
 | Florida MyFloridaMarketPlace — `POST vendor.myfloridamarketplace.com/mfmp/pub/search/bids` | `signals` | Public JSON endpoint, no key, robots-allowed | Daily | One query per keyword (an empty title returns nothing), de-duplicated on advertisementId |
 | SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open), `contacts` (25 contracting officers) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day**. `--reprocess` re-normalizes staged notices for free |
-| Track B seed list — `ingest/wholesalers.py` | `organizations` (30 wholesalers, jobbers, exporters) | Curated, checked by DNS + HTTP | Quarterly | No registry exists for this trade; entries are stored with a `site_status` and only dropped when the domain stops resolving |
+| Track B seed list — `ingest/wholesalers.py` | `organizations` (30 wholesalers, jobbers, exporters) | Curated, checked by DNS + HTTP | Monthly | No registry exists for this trade; entries are stored with a `site_status` and only dropped when the domain stops resolving |
+| Track B published contacts — `ingest/wholesaler_contacts.py` | `contacts` (27 addresses, 8 companies) | Company contact pages, robots-checked | Monthly | Only `mailto:` links the company published; nothing guessed, robots-blocked hosts never fetched |
 
 ## Skipped / blocked
 
@@ -65,8 +66,12 @@ current domain found by hand, or removal.
 A blocked site is not evidence against a company we want to *sell to*, so `blocked` and
 `unreachable` are recorded and kept; only a domain with no DNS record is disqualifying.
 
-These 30 have no contacts yet. Their buyer contacts sit on inconsistent "contact us" pages,
-and a guessed `info@` address is not a contact — this is a short, high-value manual list.
+`ingest/wholesaler_contacts.py` then reads the contact pages of the 14 that answer, following
+at most three contact/wholesale/buyback links per site and collecting only addresses the
+company published as `mailto:` links — 27 addresses across 8 companies, including
+`buybacks@textbookrush.com` and `bulkseller@textbookrush.com`. Six of the 14 publish no
+address at all and use a web form instead; those, plus the 16 whose sites block us, remain a
+manual job.
 
 ## Signal yield, measured
 
