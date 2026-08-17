@@ -15,6 +15,7 @@ deliberately skipped. Updated as each ingester lands.
 | SAM.gov Get Opportunities v2 | `signals` (28 notices, 13 open), `contacts` (25 contracting officers) | Public API, `SAM_GOV_API_KEY` | Daily | 8 queries/run: 3 NAICS + 5 PSC. Title sweeps are opt-in (`--with-titles`) because a non-federal key allows only **10 requests per day**. `--reprocess` re-normalizes staged notices for free |
 | Track B seed list — `ingest/wholesalers.py` | `organizations` (30 wholesalers, jobbers, exporters) | Curated, checked by DNS + HTTP | Monthly | No registry exists for this trade; entries are stored with a `site_status` and only dropped when the domain stops resolving |
 | Track B published contacts — `ingest/wholesaler_contacts.py` | `contacts` (27 addresses, 8 companies) | Company contact pages, robots-checked | Monthly | Only `mailto:` links the company published; nothing guessed, robots-blocked hosts never fetched |
+| USAspending federal awards — `POST api.usaspending.gov/api/v2/search/spending_by_award/` | `organizations` (171 book vendors) | Public API, **no key**, no rate cap in practice | Monthly | PSC 7610/7630/7640/7670 + NAICS 424920 over 3 years; relevance-filtered, publishers excluded |
 
 ## Skipped / blocked
 
@@ -72,6 +73,28 @@ company published as `mailto:` links — 27 addresses across 8 companies, includ
 `buybacks@textbookrush.com` and `bulkseller@textbookrush.com`. Six of the 14 publish no
 address at all and use a web form instead; those, plus the 16 whose sites block us, remain a
 manual job.
+
+## Finding Track B systematically
+
+The curated seed list was hand-written, which does not scale and cannot be audited. USAspending
+fixes both: every federal contract is public, and filtering to the book product-service codes
+returns the companies that *demonstrably* move books at scale, each with what they sold and for
+how much. 1,062 awards over three years, 415 reading like book buys, 186 distinct vendors, 14
+of them publishers (McGraw Hill, Sage, Pearson — our suppliers, not counterparties) which are
+logged and skipped. **171 stored.**
+
+The top of that list is exactly right: EBSCO ($56M), Cox Subscriptions ($51M), ProQuest ($40M),
+Ovid ($28M — Wolters Kluwer's own platform), MBS Direct ($21M), Prenax, Mackin Book Company.
+
+Caveat worth reading before working the list: roughly half of these are digital subscription
+and database vendors rather than print counterparties, so each row carries a `likely_digital`
+flag in `notes` derived from its largest award description. And USAspending publishes no
+website or contact for a recipient, so these 171 have names, states and spend but no way to
+reach them yet — matching them to domains is the next piece of work.
+
+Directories checked and rejected for Track B: ABAA (Cloudflare 403), CIROBE (domain no longer
+resolves — the remainder expo ended), IOBA (reachable, but a 40-page Wix directory of
+sole-proprietor rare-book dealers: high effort, marginal buyers).
 
 ## Signal yield, measured
 

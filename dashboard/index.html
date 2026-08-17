@@ -227,7 +227,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
 <div class="wrap">
   <header class="masthead">
     <h1>Textbook Lead Desk</h1>
-    <span class="sub">US institutional supply &amp; surplus wholesale</span>
+    <span class="sub">Organizations you can reach, or that are buying now</span>
     <span class="spacer"></span>
     <span class="stamp" id="stamp">loading</span>
   </header>
@@ -254,16 +254,6 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px; border-top: 1
     <div class="field">
       <label for="state">State</label>
       <select id="state"><option value="">All states</option></select>
-    </div>
-    <div class="field">
-      <label for="reach">Something to act on</label>
-      <select id="reach">
-        <option value="either" selected>A contact or an open signal</option>
-        <option value="contact">A contact</option>
-        <option value="signal">An open signal</option>
-        <option value="both">Both a contact and a signal</option>
-        <option value="">Everything, including unworkable</option>
-      </select>
     </div>
     <div class="checks">
       <label class="check"><input type="checkbox" id="health"> Nursing / allied health</label>
@@ -439,7 +429,6 @@ function filters() {
     track: $("track").value,
     orgType: $("orgType").value,
     st: $("state").value,
-    reach: $("reach").value,
     health: $("health").checked
   };
 }
@@ -450,11 +439,9 @@ function filteredOrgs() {
     if (f.track && o.track !== f.track && o.track !== "both") return false;
     if (f.orgType && o.org_type !== f.orgType) return false;
     if (f.st && o.state !== f.st) return false;
-    // "Something to act on" — a lead you cannot reach and that is not buying is not workable.
-    if (f.reach === "either" && !o.contacts && !o.open_signals) return false;
-    if (f.reach === "contact" && !o.contacts) return false;
-    if (f.reach === "signal" && !o.open_signals) return false;
-    if (f.reach === "both" && !(o.contacts && o.open_signals)) return false;
+    // The desk only shows organizations you can act on: reachable, or buying right now.
+    // Everything else is in the database but not in this view.
+    if (!o.contacts && !o.open_signals) return false;
     if (f.health) {
       const flags = parseJson(o.flags, {});
       if (!HEALTH_FLAGS.some(flag => flags[flag])) return false;
@@ -501,7 +488,7 @@ function renderTiles() {
   const signals = filteredSignals();
   const urgent = signals.filter(s => { const d = daysTo(s.deadline); return d != null && d <= 30; }).length;
   const tiles = [
-    ["Organizations", orgs.length.toLocaleString(), `of ${DATA.orgs.length.toLocaleString()} in the database`],
+    ["Workable", orgs.length.toLocaleString(), `of ${DATA.orgs.length.toLocaleString()} in the database`],
     ["With a contact", withContact.toLocaleString(), "reachable today"],
     ["With a signal", withSignal.toLocaleString(), "buying now"],
     ["Open signals", signals.length.toLocaleString(), "future deadlines"],
@@ -615,9 +602,9 @@ function render() {
   if (state.tab === "orgs") {
     const shown = orgs.slice(0, 400);
     $("orgBody").innerHTML = shown.length ? shown.map(orgRow).join("")
-      : `<tr><td colspan="7" class="empty-note" style="padding:16px">Nothing matches. No organization
-         currently has both a contact and an open signal — contacts come from the library consortia,
-         the open signals are federal agencies.</td></tr>`;
+      : `<tr><td colspan="7" class="empty-note" style="padding:16px">Nothing matches these
+         filters. This desk lists only organizations with a contact or an open signal — clear
+         the filters to see all of them.</td></tr>`;
     $("orgCards").innerHTML = shown.map(orgCard).join("");
     const noun = orgs.length === 1 ? "organization matches" : "organizations match";
     $("countNote").textContent =
@@ -642,11 +629,10 @@ function toggleTab(tab) {
 }
 
 function wire() {
-  ["q", "track", "orgType", "state", "reach", "health"]
+  ["q", "track", "orgType", "state", "health"]
     .forEach(id => $(id).addEventListener("input", render));
   $("reset").addEventListener("click", () => {
     ["q", "track", "orgType", "state"].forEach(id => $(id).value = "");
-    $("reach").value = "either";        // the working default, not "everything"
     $("health").checked = false;
     render();
   });
