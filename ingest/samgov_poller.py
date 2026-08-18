@@ -20,6 +20,7 @@ import datetime as dt
 import json
 import logging
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -58,6 +59,16 @@ TITLE_KEYWORDS = [
     "textbook", "textbooks", "library books", "book supply", "course materials",
     "educational materials", "nursing textbooks", "medical books", "periodicals",
 ]
+
+# We sell physical books. Electronic subscription and database renewals are EBSCO's and
+# ProQuest's business — a rep cannot fulfil them, so they never become signals. Kept in
+# source_records for the competitor picture, excluded from the desk.
+UNFULFILLABLE = re.compile(
+    r"(online subscription|electronic subscription|database subscription|e-?resource|"
+    r"sciencedirect|scifinder|westlaw|lexis|bloomberg|proquest|ebsco|ovid|clarivate|"
+    r"digital magazine|journal platform|web hosting|open access publishing|"
+    r"software|saas|streaming|annual reviews|data subscription|"
+    r"subscription service|subscriptions? (?:renewal|for|to))", re.I)
 
 # Notice types worth acting on. 'p' presolicitation, 'o' solicitation, 'k' combined synopsis,
 # 'r' sources sought. Awards and justifications are excluded — the buy is already gone.
@@ -274,6 +285,13 @@ def normalize_notice(conn, notice: dict, counters: dict) -> None:
         conn, source=SOURCE, record_type="signal", payload=notice,
         source_key=notice_id, source_url=notice.get("uiLink"),
     )
+
+    title = (notice.get("title") or "")
+    if UNFULFILLABLE.search(title):
+        counters["errors"] = counters["errors"]  # not an error — just not our product
+        conn.execute("DELETE FROM signals WHERE source = ? AND source_key = ?",
+                     (SOURCE, notice_id))
+        return
 
     deadline = _deadline(notice)
     expired = bool(deadline and deadline < dt.date.today().isoformat())

@@ -29,22 +29,17 @@ PREVIEW = HERE / "preview.html"
 ORG_SQL = """
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
          o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
-         o.programs_flags AS flags, o.notes AS notes, o.source AS source,
-         o.coop_affiliations AS coops, o.status, o.claimed_by,
-         (SELECT COUNT(*) FROM contacts c WHERE c.org_id = o.id) AS contacts,
-         (SELECT COUNT(*) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
-            AND (s.deadline IS NULL OR s.deadline >= date('now'))) AS open_signals,
-         (SELECT MIN(s.deadline) FROM signals s WHERE s.org_id = o.id AND s.status = 'open'
-            AND s.deadline >= date('now')) AS deadline
+         o.programs_flags AS flags, o.notes AS notes, o.source AS source, o.status,
+         o.coop_affiliations AS coops
     FROM organizations o"""
-CONTACT_SQL = """SELECT id, org_id, name, title, role_type, email, email_verified AS verified,
-                        phone, source_url FROM contacts"""
+CONTACT_SQL = """SELECT id, org_id, name, title, role_type, email, phone, is_generic,
+                        source FROM contacts"""
 SIGNAL_SQL = """
-  SELECT s.id, s.org_id, s.signal_type AS type, s.title, s.description, s.url,
-         s.reference_number AS ref, s.deadline, s.amount_estimate AS amount, s.source,
-         s.state, s.status, COALESCE(o.name, s.org_name_raw) AS org_name
+  SELECT s.id, s.org_id, s.signal_type AS type, s.title, s.url, s.reference_number AS ref,
+         s.deadline, s.amount_estimate AS amount, s.source, s.state,
+         COALESCE(o.name, s.org_name_raw) AS org_name
     FROM signals s LEFT JOIN organizations o ON o.id = s.org_id
-   WHERE s.status = 'open' AND (s.deadline IS NULL OR s.deadline >= date('now'))"""
+   WHERE s.status = 'open' AND s.deadline >= date('now')"""
 
 
 def build_web_db() -> None:
