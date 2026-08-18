@@ -84,6 +84,7 @@ def build_preview(data: dict) -> None:
     """Inline the data and strip the document wrapper (the artifact host supplies it)."""
     html = INDEX.read_text(encoding="utf-8")
     payload = json.dumps(data, separators=(",", ":"), default=str)
+    payload = payload.replace("�", "–")   # mojibake in source titles -> en dash
     # </script> inside a JSON string would end the script element early.
     payload = payload.replace("</", "<\\/")
     html = html.replace(

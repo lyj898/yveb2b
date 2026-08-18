@@ -262,7 +262,7 @@ async function load() {
 
 /* --- helpers --------------------------------------------------------------- */
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/�/g, "–").replace(/[&<>"']/g, c =>
+const esc = s => String(s ?? "").replace(/–/g, "–").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
 const parseJson = (v, fb) => { if (v == null) return fb; if (typeof v === "object") return v;
