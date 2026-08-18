@@ -41,6 +41,8 @@ KEYWORDS = [
 ]
 # Titles that match a keyword but are not a materials buy.
 NEGATIVE = [
+    # K-12 — not our market
+    "k-12", "k12", "k-5", "k-8", "elementary", "middle school", "high school", "pre-k",
     "bookkeeping", "booking", "bookmobile", "chromebook", "notebook computer",
     "library automation", "space utilization", "library building", "roof",
     "flooring", "renovation", "construction",

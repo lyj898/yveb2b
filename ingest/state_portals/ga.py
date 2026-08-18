@@ -43,11 +43,16 @@ KEYWORDS = [
 ]
 # Titles that would otherwise trip the "book" / "print" style keywords.
 NEGATIVE = [
+    # K-12 — not our market
+    "k-12", "k12", "k-5", "k-8", "elementary", "middle school", "high school",
+    "pre-k", "prekindergarten", "school nutrition",
     "bookkeeping", "book keeping", "booking", "printer", "printing services",
     "book bindery equipment", "bookmobile chassis", "notebook computer", "chromebook",
 ]
-# Buyer types that could plausibly buy course materials at all.
-RELEVANT_GOV_TYPES = {"state", "K-12", "county", "city", "other"}
+# Buyer types that could plausibly buy university-level course materials. We do not serve
+# K-12, so school boards are excluded outright ("state" carries the university system;
+# "other" carries library systems and health boards).
+RELEVANT_GOV_TYPES = {"state", "county", "city", "other"}
 
 REQUEST_TYPE_TO_SIGNAL = {
     "Request for Proposal": "rfp",

@@ -7,8 +7,8 @@
 <style>
 /* ---------------------------------------------------------------------------
    Ledger stock and printer's ink. Neutrals carry a slight green bias so they sit
-   with the accent. Semantic colours (urgent/soon/open) only ever mean deadline;
-   good/bad pills (lead / locked) reuse open/urgent tones deliberately.
+   with the accent. Red is reserved for deadlines closing soon — nothing else on
+   the page is allowed to be red, so urgency stays a signal instead of a theme.
    --------------------------------------------------------------------------- */
 :root {
   --ground:        #f6f6f3;
@@ -74,17 +74,23 @@ a { color: var(--accent); }
 .stamp { font-family: var(--mono); font-size: 11px; text-transform: uppercase;
   letter-spacing: .09em; color: var(--ink-3); }
 
-/* Tabs are the product: each one is a distinct play a rep can run today. */
+/* Tabs: built once, only counts and selection change afterwards, so keyboard
+   focus survives every interaction. "Skip these" is deliberately quieter and
+   pushed right — it is a reference list, not a peer of the lead lists. */
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 18px 0 0; border-bottom: 1px solid var(--line); }
 .tab { background: none; border: 1px solid transparent; border-bottom: none;
   border-radius: var(--radius) var(--radius) 0 0; padding: 9px 14px; font-size: 14px;
   color: var(--ink-3); margin-bottom: -1px; cursor: pointer; }
-.tab b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; color: inherit; }
+.tab b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
 .tab[aria-selected="true"] { background: var(--surface); border-color: var(--line);
   color: var(--ink); font-weight: 600; }
-.tab-blurb { color: var(--ink-2); font-size: 13.5px; margin: 12px 2px 4px; max-width: 72ch; }
+.tab:hover { color: var(--accent); }
+.tab.muted { margin-left: auto; font-size: 12.5px; }
+.tab.muted b { font-size: 13px; }
+.tab-blurb { color: var(--ink-2); font-size: 13.5px; margin: 12px 2px 4px; max-width: 76ch; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; align-items: center; }
+.filters [hidden] { display: none !important; }
 input[type="search"], select {
   font: inherit; font-size: 14px; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line-strong); border-radius: 4px; padding: 6px 9px; }
@@ -97,7 +103,7 @@ button:hover { border-color: var(--accent); color: var(--accent); }
 .count-note { color: var(--ink-3); font-size: 13px; margin: 8px 2px 12px; font-variant-numeric: tabular-nums; }
 
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-table { border-collapse: collapse; width: 100%; min-width: 720px; }
+table { border-collapse: collapse; width: 100%; min-width: 700px; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
   font-family: var(--mono); font-weight: 500; color: var(--ink-3); padding: 9px 12px;
   border-bottom: 1px solid var(--line); white-space: nowrap; background: var(--surface);
@@ -116,18 +122,26 @@ tbody tr:hover { background: var(--surface-2); }
 .pill.open { background: var(--open-soft); color: var(--open); }
 .pill.flag { background: var(--accent-soft); color: var(--accent); }
 
-.copy { font: inherit; font-family: var(--mono); font-size: 12.5px; background: none;
-  border: none; border-bottom: 1px dashed var(--line-strong); color: var(--ink);
-  padding: 0 0 1px; cursor: pointer; }
-.copy:hover { color: var(--accent); border-color: var(--accent); }
+/* Contact cell: the email/phone is a real link (mailto:/tel:), the small ⧉
+   button copies. Both are visibly interactive and comfortably tappable. */
+.contact a { font-family: var(--mono); font-size: 12.5px; text-decoration: none;
+  border-bottom: 1px solid var(--accent-soft); }
+.contact a:hover { border-color: var(--accent); }
+.copy { font-family: var(--mono); font-size: 11px; padding: 2px 7px; margin-left: 5px;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px;
+  color: var(--ink-2); cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
 .copy.copied { color: var(--open); border-color: var(--open); }
+.copy.failed { color: var(--urgent); border-color: var(--urgent); }
 
 .cards { display: none; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
 .card-meta { color: var(--ink-3); font-size: 12.5px; margin-top: 2px; }
 .card-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-.card .act { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 13px; }
+.card .act { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px 14px;
+  font-size: 14px; align-items: center; }
+.card .act a { padding: 4px 0; }
 
 .status { padding: 40px 0; text-align: center; color: var(--ink-3); }
 .status code { font-family: var(--mono); font-size: 12.5px; }
@@ -139,6 +153,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
   .table-scroll { display: none; }
   .cards { display: block; }
   .masthead h1 { font-size: 22px; }
+  .tab.muted { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -147,18 +162,18 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
 <div class="wrap">
   <header class="masthead">
     <h1>Textbook Lead Desk</h1>
-    <span class="sub">Every row is a call or an email a rep can make today</span>
+    <span class="sub">Who to call, who's bidding, who to skip — university and above</span>
     <span class="spacer"></span>
     <span class="stamp" id="stamp">loading</span>
   </header>
 
-  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="tabs" id="tabs"></div>
   <p class="tab-blurb" id="blurb"></p>
 
   <div class="filters">
-    <input type="search" id="q" placeholder="Search name, city, email">
+    <input type="search" id="q" placeholder="Search">
     <select id="state"><option value="">All states</option></select>
-    <label style="font-size:13px;color:var(--ink-2)">
+    <label id="healthWrap" style="font-size:13px;color:var(--ink-2)">
       <input type="checkbox" id="health" style="accent-color:var(--accent)"> Nursing / allied health
     </label>
     <button type="button" id="reset">Reset</button>
@@ -174,26 +189,45 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
 
 <script>
 /* ---------------------------------------------------------------------------
-   Same two loading paths as before: sql.js over ./leads.db, or the embedded
-   window.__LEADS_DATA__ that build_static.py inlines.
+   Data. Two paths, one shape: sql.js over ./leads.db, or the embedded
+   window.__LEADS_DATA__ inlined by build_static.py.
+
+   The bids query enforces the tab's own promise: physical materials only, no
+   subscription/database renewals, no K-12 buyers. The ingest pipeline filters
+   at the source too — this is the belt to that braces, so a stale database can
+   never put an unfulfillable row in front of a rep.
    --------------------------------------------------------------------------- */
 const SQL_JS = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/";
 const DB_CANDIDATES = ["./leads.db", "../db/leads.db"];
 
 const ORG_SQL = `
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
-         o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
-         o.programs_flags AS flags, o.notes AS notes, o.source AS source, o.status,
-         o.coop_affiliations AS coops
+         o.state, o.city, o.size_metric AS size, o.programs_flags AS flags,
+         o.notes AS notes, o.status, o.coop_affiliations AS coops
     FROM organizations o`;
-const CONTACT_SQL = `SELECT id, org_id, name, title, role_type, email, phone, is_generic,
-                            source FROM contacts`;
+const CONTACT_SQL = `SELECT org_id, role_type, email, phone FROM contacts`;
 const SIGNAL_SQL = `
-  SELECT s.id, s.org_id, s.signal_type AS type, s.title, s.url, s.reference_number AS ref,
-         s.deadline, s.amount_estimate AS amount, s.source, s.state,
+  SELECT s.id, s.title, s.url, s.reference_number AS ref, s.deadline, s.source, s.state,
          COALESCE(o.name, s.org_name_raw) AS org_name
     FROM signals s LEFT JOIN organizations o ON o.id = s.org_id
-   WHERE s.status = 'open' AND s.deadline >= date('now')`;
+   WHERE s.status = 'open' AND s.deadline >= date('now')
+     AND lower(s.title) NOT LIKE '%subscription%'
+     AND lower(s.title) NOT LIKE '%journal%'
+     AND lower(s.title) NOT LIKE '%web hosting%'
+     AND lower(s.title) NOT LIKE '%database%'
+     AND lower(s.title) NOT LIKE '%annual review%'
+     AND lower(s.title) NOT LIKE '%intent to award%'
+     AND lower(s.title) NOT LIKE '%marker%'
+     AND lower(s.title) NOT LIKE '%k-12%'
+     AND lower(s.title) NOT LIKE '%k12%'
+     AND lower(s.title) NOT LIKE '%elementary%'
+     AND lower(s.title) NOT LIKE '%middle school%'
+     AND lower(s.title) NOT LIKE '%high school%'
+     AND lower(COALESCE(o.name, s.org_name_raw, '')) NOT LIKE '%school%'
+     AND lower(COALESCE(o.name, s.org_name_raw, '')) NOT LIKE '%board of education%'`;
+const FRESH_SQL = `
+  SELECT MAX(d) FROM (SELECT MAX(date(date_updated)) AS d FROM organizations
+                      UNION ALL SELECT MAX(date(date_updated)) FROM signals)`;
 
 let DATA = { orgs: [], contacts: [], signals: [], meta: {} };
 
@@ -223,18 +257,19 @@ async function load() {
   const db = new SQL.Database(await fetchDb());
   DATA = { orgs: rows(db, ORG_SQL), contacts: rows(db, CONTACT_SQL),
            signals: rows(db, SIGNAL_SQL),
-           meta: { generated: new Date().toISOString().slice(0, 10) } };
+           meta: { data_date: (db.exec(FRESH_SQL)[0] || {}).values?.[0]?.[0] || null } };
 }
 
 /* --- helpers --------------------------------------------------------------- */
 const $ = id => document.getElementById(id);
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+const esc = s => String(s ?? "").replace(/�/g, "–").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
 const parseJson = (v, fb) => { if (v == null) return fb; if (typeof v === "object") return v;
   try { return JSON.parse(v); } catch (e) { return fb; } };
 const daysTo = iso => iso ? Math.round((new Date(iso + "T00:00:00") - new Date().setHours(0,0,0,0)) / 864e5) : null;
 const HEALTH = ["nursing", "allied_health", "medical", "pharmacy"];
+const RENDER_CAP = 300;
 
 function deadlinePill(iso) {
   if (!iso) return '<span class="pill type">no deadline</span>';
@@ -242,30 +277,43 @@ function deadlinePill(iso) {
   const cls = d <= 14 ? "urgent" : d <= 45 ? "soon" : "open";
   return `<span class="pill ${cls}">${esc(iso)} · ${d}d</span>`;
 }
+/* Email and phone are real links — one tap mails or dials. ⧉ copies. */
+function emailLink(v) {
+  return v ? `<span class="contact"><a href="mailto:${esc(v)}">${esc(v)}</a><button
+    class="copy" data-copy="${esc(v)}" title="copy">⧉</button></span>` : "";
+}
+function phoneLink(v) {
+  if (!v) return "";
+  const tel = String(v).replace(/[^\d+]/g, "");
+  return `<span class="contact"><a href="tel:${esc(tel)}">${esc(v)}</a><button
+    class="copy" data-copy="${esc(v)}" title="copy">⧉</button></span>`;
+}
 function copyBtn(text, label) {
   if (!text) return '<span class="org-meta">—</span>';
-  return `<button class="copy" data-copy="${esc(text)}">${esc(label || text)}</button>`;
+  return `<span class="contact"><a href="#" onclick="return false">${esc(label || text)}</a><button
+    class="copy" data-copy="${esc(text)}" title="copy">⧉</button></span>`;
 }
 document.addEventListener("click", e => {
   const btn = e.target.closest(".copy");
   if (!btn) return;
-  navigator.clipboard.writeText(btn.dataset.copy).then(() => {
-    const t = btn.textContent; btn.textContent = "copied"; btn.classList.add("copied");
-    setTimeout(() => { btn.textContent = t; btn.classList.remove("copied"); }, 1100);
-  });
+  const done = ok => {
+    btn.textContent = ok ? "✓" : "×"; btn.classList.add(ok ? "copied" : "failed");
+    setTimeout(() => { btn.textContent = "⧉"; btn.classList.remove("copied", "failed"); }, 1100);
+  };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(btn.dataset.copy).then(() => done(true), () => done(false));
+  } else { done(false); }
 });
 
 /* ---------------------------------------------------------------------------
-   The views. Each is a self-contained play with its own columns, its own rows,
-   and a one-line brief telling the rep what this list is and how to use it.
+   Views. Each declares which filters apply to it; controls that do nothing on
+   a tab are hidden on that tab. Tab count always equals the rows in the table.
    --------------------------------------------------------------------------- */
 let VIEWS = [];
 
-function healthFlags(o) {
-  const f = parseJson(o.flags, {});
-  return HEALTH.filter(k => f[k]);
-}
+function healthFlags(o) { const f = parseJson(o.flags, {}); return HEALTH.filter(k => f[k]); }
 function isHealth(o) { return healthFlags(o).length > 0; }
+const reachRank = s => (s.email ? 2 : s.phone ? 1 : 0);
 
 function buildViews() {
   const contactsByOrg = new Map();
@@ -273,97 +321,107 @@ function buildViews() {
     if (!contactsByOrg.has(c.org_id)) contactsByOrg.set(c.org_id, []);
     contactsByOrg.get(c.org_id).push(c);
   }
-  const orgById = new Map(DATA.orgs.map(o => [o.id, o]));
 
-  /* -- 1. Independent campus stores: the core physical-textbook buyer -------- */
+  /* Campus stores: independent = local buying decision. Reachable first. */
   const storeLeads = [], storeLocked = [];
   for (const o of DATA.orgs) {
     const store = parseJson(o.notes, {}).store;
     if (!store) continue;
-    if (store.kind === "managed") { storeLocked.push({ o, store }); continue; }
-    if (store.kind === "independent" || store.kind === "external") {
-      if (store.email || store.phone || store.store_url) storeLeads.push({ o, store });
-    }
+    if (store.kind === "managed") storeLocked.push({ o, store });
+    else if ((store.kind === "independent" || store.kind === "external")
+             && (store.email || store.phone)) storeLeads.push({ o, store });
   }
-  storeLeads.sort((a, b) => (b.store.email ? 1 : 0) - (a.store.email ? 1 : 0) || (b.o.size || 0) - (a.o.size || 0));
+  storeLeads.sort((a, b) => reachRank(b.store) - reachRank(a.store) || (b.o.size || 0) - (a.o.size || 0));
 
-  /* -- 2. Live bids: physical materials with a future deadline --------------- */
   const bids = [...DATA.signals].sort((a, b) => (a.deadline || "9999").localeCompare(b.deadline || "9999"));
 
-  /* -- 3. Surplus buyers: Track B counterparties you can reach --------------- */
+  /* Surplus buyers: only counterparties we can actually reach today. */
   const surplus = DATA.orgs
     .filter(o => (o.track === "B" || o.track === "both") && o.status !== "disqualified")
     .map(o => ({ o, contacts: contactsByOrg.get(o.id) || [] }))
-    .sort((a, b) => b.contacts.length - a.contacts.length || String(a.o.name).localeCompare(b.o.name));
+    .filter(x => x.contacts.length)
+    .sort((a, b) => String(a.o.name).localeCompare(b.o.name));
 
-  /* -- 4. Library accounts: secondary — monographs and course reserves ------- */
   const libraries = DATA.orgs
     .map(o => ({ o, contacts: (contactsByOrg.get(o.id) || []).filter(c => c.role_type === "acquisitions_librarian") }))
     .filter(x => x.contacts.length)
     .sort((a, b) => (b.o.size || 0) - (a.o.size || 0));
 
-  /* -- 5. Locked campuses + federal incumbents: the don't-waste-a-call list --- */
   const incumbents = DATA.orgs
     .filter(o => parseJson(o.notes, {}).federal_total_usd != null && o.status === "disqualified")
     .map(o => ({ o, note: parseJson(o.notes, {}) }))
     .sort((a, b) => b.note.federal_total_usd - a.note.federal_total_usd);
+  const locked = [...storeLocked.map(x => ({ kind: "store", ...x })),
+                  ...incumbents.map(x => ({ kind: "incumbent", ...x }))];
 
   VIEWS = [
     {
-      key: "stores", label: "Campus stores", count: storeLeads.length,
-      blurb: "Institutions that run their own store — a local buying decision. Lead with used/bulk pricing on core titles. Stores with an email first, then phone-only. \"Nursing / allied health\" narrows to LWW-priority campuses.",
-      head: ["Institution", "State", "Enrollment", "Programs", "Store", "Email", "Phone"],
-      rows: storeLeads, render: renderStoreRow, card: cardStore,
-      filter: ({ o }, f) => matchOrg(o, f),
-      empty: "No independent stores found yet — the campus crawl is still running."
+      key: "stores", label: "Campus stores", rows: storeLeads,
+      blurb: "Institutions running their own store — the buying decision is on campus. Email or phone is one tap. Lead with used/bulk pricing on core adoption titles.",
+      filters: ["q", "state", "health"], search: "Search school, city, email",
+      head: ["Institution", "State", "Enrollment", "Programs", "Store", "Contact"],
+      render: renderStoreRow, card: cardStore,
+      match: ({ o }, f) => matchOrg(o, f),
+      emptyData: "No independent campus stores found yet — the campus crawl is still filling this list.",
     },
     {
-      key: "bids", label: "Live bids", count: bids.length,
-      blurb: "Open solicitations for physical books and course materials with a future deadline, soonest first. Electronic subscription renewals are excluded — you cannot fulfil them. Reference numbers copy to clipboard.",
+      key: "bids", label: "Live bids", rows: bids,
+      blurb: "Open solicitations for physical books and course materials, university and above, soonest deadline first. Subscription renewals and K-12 bids never appear here.",
+      filters: ["q", "state"], search: "Search title, buyer, reference",
       head: ["Deadline", "Buyer", "Solicitation", "Reference", "Source"],
-      rows: bids, render: renderBidRow, card: cardBid,
-      filter: (s, f) => matchBid(s, f),
-      empty: "Nothing fulfillable is open right now. The pollers run daily; check back tomorrow."
+      render: renderBidRow, card: cardBid,
+      match: (s, f) => matchBid(s, f),
+      emptyData: "Nothing fulfillable is open right now. The pollers run every day — an empty list is honest, not broken.",
     },
     {
-      key: "surplus", label: "Surplus buyers", count: surplus.filter(x => x.contacts.length).length,
-      blurb: "Wholesalers, jobbers and buyback programs that purchase overstock. buybacks@ / bulkseller@ mailboxes exist to receive exactly this pitch. Companies without an address need a phone call — their sites block crawlers, not buyers.",
+      key: "surplus", label: "Surplus buyers", rows: surplus,
+      blurb: "Wholesalers and buyback programs that purchase overstock, each with a published mailbox — buybacks@ and bids@ exist to receive exactly this pitch.",
+      filters: ["q"], search: "Search company, email",
       head: ["Company", "Type", "What they do", "Reach them"],
-      rows: surplus, render: renderSurplusRow, card: cardSurplus,
-      filter: ({ o }, f) => matchOrg(o, f),
-      empty: "No Track B counterparties match."
+      render: renderSurplusRow, card: cardSurplus,
+      match: ({ o, contacts }, f) => matchOrg(o, f, contacts),
+      emptyData: "No reachable surplus buyers in the database.",
     },
     {
-      key: "libraries", label: "Library accounts", count: libraries.length,
-      blurb: "Secondary play: consortium libraries with published acquisitions addresses. They buy monographs and course reserves, not bulk textbooks — pitch reference and health-sciences backlist, not adoption stock.",
+      key: "libraries", label: "Library accounts", rows: libraries,
+      blurb: "Secondary play: consortium libraries with published acquisitions addresses. They buy monographs and reference, not adoption stock — pitch health-sciences backlist.",
+      filters: ["q", "state", "health"], search: "Search institution, city",
       head: ["Institution", "State", "Enrollment", "Consortium", "Acquisitions contact"],
-      rows: libraries, render: renderLibraryRow, card: cardLibrary,
-      filter: ({ o }, f) => matchOrg(o, f),
-      empty: "No library contacts match."
+      render: renderLibraryRow, card: cardLibrary,
+      match: ({ o }, f) => matchOrg(o, f),
+      emptyData: "No library contacts in the database.",
     },
     {
-      key: "locked", label: "Do not chase", count: storeLocked.length + incumbents.length,
-      blurb: "Campuses whose store is run centrally (Follett, Barnes & Noble College) and federal incumbents holding the subscription contracts. Not leads — this list exists so nobody wastes a week finding that out.",
-      head: ["Organization", "Why it's closed", "Detail"],
-      rows: [...storeLocked.map(x => ({ kind: "store", ...x })),
-             ...incumbents.map(x => ({ kind: "incumbent", ...x }))],
+      key: "locked", label: "Skip these", rows: locked, muted: true,
+      blurb: "Campuses whose store is run centrally (Follett, Barnes & Noble College) and the incumbents holding federal subscription contracts. Not leads — here so nobody spends a week finding out.",
+      filters: ["q", "state"], search: "Search organization",
+      head: ["Organization", "Why to skip", "Detail"],
       render: renderLockedRow, card: cardLocked,
-      filter: (x, f) => matchOrg(x.o, f),
-      empty: "Nothing here matches."
+      match: (x, f) => matchOrg(x.o, f),
+      emptyData: "Nothing recorded here yet.",
     },
   ];
 }
 
-/* --- filtering -------------------------------------------------------------- */
+/* --- filtering ---------------------------------------------------------------- */
 function filters() {
   return { q: $("q").value.trim().toLowerCase(), st: $("state").value, health: $("health").checked };
 }
-function matchOrg(o, f) {
-  if (f.st && o.state !== f.st) return false;
-  if (f.health && !isHealth(o)) return false;
+function activeFilterCount(view, f) {
+  let n = 0;
+  if (view.filters.includes("q") && f.q) n++;
+  if (view.filters.includes("state") && f.st) n++;
+  if (view.filters.includes("health") && f.health) n++;
+  return n;
+}
+function matchOrg(o, f, contacts) {
+  const view = VIEWS.find(v => v.key === state.tab);
+  if (view.filters.includes("state") && f.st && o.state !== f.st) return false;
+  if (view.filters.includes("health") && f.health && !isHealth(o)) return false;
   if (f.q) {
     const store = parseJson(o.notes, {}).store || {};
-    const hay = `${o.name} ${o.city || ""} ${o.domain || ""} ${store.email || ""}`.toLowerCase();
+    const emails = (contacts || []).map(c => c.email).join(" ");
+    const hay = `${o.name} ${o.city || ""} ${o.domain || ""} ${store.email || ""} ${emails}`.toLowerCase();
     if (!hay.includes(f.q)) return false;
   }
   return true;
@@ -374,16 +432,21 @@ function matchBid(s, f) {
   return true;
 }
 
-/* --- renderers --------------------------------------------------------------- */
+/* --- row renderers -------------------------------------------------------------- */
+function contactCell(store) {
+  const parts = [];
+  if (store.email) parts.push(emailLink(store.email));
+  if (store.phone) parts.push(phoneLink(store.phone));
+  return parts.join("<br>") || '<span class="org-meta">—</span>';
+}
 function renderStoreRow({ o, store }) {
   return `<tr>
     <td><div class="org-name">${esc(o.name)}</div><div class="org-meta">${esc(o.city || "")}</div></td>
     <td>${esc(o.state || "—")}</td>
     <td class="num">${num(o.size)}</td>
     <td>${healthFlags(o).map(x => `<span class="pill flag">${esc(x.replace("_", " "))}</span>`).join(" ") || '<span class="org-meta">—</span>'}</td>
-    <td>${store.store_url ? `<a href="${esc(store.store_url)}" target="_blank" rel="noopener">store site</a>` : "—"}</td>
-    <td>${copyBtn(store.email)}</td>
-    <td>${copyBtn(store.phone)}</td>
+    <td>${store.store_url ? `<a href="${esc(store.store_url)}" target="_blank" rel="noopener">site</a>` : "—"}</td>
+    <td>${contactCell(store)}</td>
   </tr>`;
 }
 function cardStore({ o, store }) {
@@ -391,7 +454,7 @@ function cardStore({ o, store }) {
     <div class="org-name">${esc(o.name)}</div>
     <div class="card-meta">${esc(o.city || "")}${o.state ? ", " + esc(o.state) : ""} · ${num(o.size)} enrolled</div>
     <div class="card-pills">${healthFlags(o).map(x => `<span class="pill flag">${esc(x.replace("_"," "))}</span>`).join("")}</div>
-    <div class="act">${store.email ? copyBtn(store.email) : ""} ${store.phone ? copyBtn(store.phone) : ""}
+    <div class="act">${store.email ? emailLink(store.email) : ""} ${store.phone ? phoneLink(store.phone) : ""}
       ${store.store_url ? `<a href="${esc(store.store_url)}" target="_blank" rel="noopener">store site</a>` : ""}</div>
   </article>`;
 }
@@ -415,22 +478,18 @@ function cardBid(s) {
 }
 
 function renderSurplusRow({ o, contacts }) {
-  const reach = contacts.length
-    ? contacts.slice(0, 3).map(c => copyBtn(c.email)).join("<br>")
-    : `<span class="org-meta">no address published — ${o.domain ? `<a href="https://${esc(o.domain)}" target="_blank" rel="noopener">site</a> +` : ""} phone</span>`;
   return `<tr>
     <td><div class="org-name">${esc(o.name)}</div><div class="org-meta">${esc(o.domain || "")}</div></td>
     <td><span class="pill type">${esc(o.org_type.replace("_", " "))}</span></td>
     <td class="org-meta">${esc(o.segment || "")}</td>
-    <td>${reach}</td>
+    <td>${contacts.slice(0, 3).map(c => emailLink(c.email)).join("<br>")}</td>
   </tr>`;
 }
 function cardSurplus({ o, contacts }) {
   return `<article class="card">
     <div class="org-name">${esc(o.name)}</div>
     <div class="card-meta">${esc(o.segment || "")}</div>
-    <div class="act">${contacts.slice(0, 2).map(c => copyBtn(c.email)).join(" ")
-      || (o.domain ? `<a href="https://${esc(o.domain)}" target="_blank" rel="noopener">${esc(o.domain)}</a>` : "")}</div>
+    <div class="act">${contacts.slice(0, 2).map(c => emailLink(c.email)).join(" ")}</div>
   </article>`;
 }
 
@@ -441,67 +500,91 @@ function renderLibraryRow({ o, contacts }) {
     <td>${esc(o.state || "—")}</td>
     <td class="num">${num(o.size)}</td>
     <td>${coops.map(x => `<span class="pill type">${esc(x)}</span>`).join(" ") || "—"}</td>
-    <td>${contacts.slice(0, 2).map(c => copyBtn(c.email)).join("<br>")}</td>
+    <td>${contacts.slice(0, 2).map(c => emailLink(c.email)).join("<br>")}</td>
   </tr>`;
 }
 function cardLibrary({ o, contacts }) {
   return `<article class="card">
     <div class="org-name">${esc(o.name)}</div>
     <div class="card-meta">${esc(o.city || "")}${o.state ? ", " + esc(o.state) : ""}</div>
-    <div class="act">${contacts.slice(0, 2).map(c => copyBtn(c.email)).join(" ")}</div>
+    <div class="act">${contacts.slice(0, 2).map(c => emailLink(c.email)).join(" ")}</div>
   </article>`;
 }
 
+/* Skip these: the reason is plain text — red stays reserved for deadlines. */
 function renderLockedRow(x) {
-  if (x.kind === "store") {
-    return `<tr>
-      <td><div class="org-name">${esc(x.o.name)}</div><div class="org-meta">${esc(x.o.state || "")}</div></td>
-      <td><span class="pill urgent">store run by ${esc(x.store.operator || "a national operator")}</span></td>
-      <td class="org-meta">Buying is central, not on campus${x.store.store_url ? ` — <a href="${esc(x.store.store_url)}" target="_blank" rel="noopener">their storefront</a>` : ""}</td>
-    </tr>`;
-  }
+  const tag = x.kind === "store" ? (x.store.operator || "national operator") : "federal incumbent";
+  const why = x.kind === "store"
+    ? "Store is run centrally — the campus cannot buy from you"
+    : `Holds $${num(x.note.federal_total_usd)} of the federal subscription business`;
+  const detail = x.kind === "store"
+    ? (x.store.store_url ? `<a href="${esc(x.store.store_url)}" target="_blank" rel="noopener">their storefront</a>` : "")
+    : esc(x.note.largest_award || "");
   return `<tr>
     <td><div class="org-name">${esc(x.o.name)}</div><div class="org-meta">${esc(x.o.state || "")}</div></td>
-    <td><span class="pill urgent">holds $${num(x.note.federal_total_usd)} in federal contracts</span></td>
-    <td class="org-meta">${esc(x.note.largest_award || "")}</td>
+    <td><span class="pill type">${esc(tag)}</span><div class="org-meta">${why}</div></td>
+    <td class="org-meta">${detail}</td>
   </tr>`;
 }
 function cardLocked(x) {
-  const why = x.kind === "store"
-    ? `store run by ${x.store.operator || "a national operator"}`
-    : `holds $${num(x.note.federal_total_usd)} federal`;
+  const tag = x.kind === "store" ? (x.store.operator || "national operator") : "federal incumbent";
   return `<article class="card">
     <div class="org-name">${esc(x.o.name)}</div>
-    <div class="card-pills"><span class="pill urgent">${esc(why)}</span></div>
+    <div class="card-pills"><span class="pill type">${esc(tag)}</span></div>
   </article>`;
 }
 
-/* --- shell -------------------------------------------------------------------- */
+/* --- shell ------------------------------------------------------------------------ */
 const state = { tab: "stores" };
+
+function buildTabs() {
+  $("tabs").innerHTML = VIEWS.map(v =>
+    `<button class="tab${v.muted ? " muted" : ""}" aria-selected="${v.key === state.tab}"
+             data-tab="${v.key}">${esc(v.label)}<b data-count></b></button>`).join("");
+  $("tabs").addEventListener("click", e => {
+    const tab = e.target.closest(".tab");
+    if (!tab || tab.dataset.tab === state.tab) return;
+    state.tab = tab.dataset.tab;
+    for (const el of document.querySelectorAll(".tab"))
+      el.setAttribute("aria-selected", String(el.dataset.tab === state.tab));
+    render();
+  });
+}
 
 function render() {
   const f = filters();
-  $("tabs").innerHTML = VIEWS.map(v =>
-    `<button class="tab" role="tab" aria-selected="${v.key === state.tab}" data-tab="${v.key}">
-       ${esc(v.label)}<b>${v.count.toLocaleString()}</b></button>`).join("");
   const view = VIEWS.find(v => v.key === state.tab);
+
+  /* counts on every tab reflect exactly what that tab renders */
+  for (const el of document.querySelectorAll(".tab")) {
+    const v = VIEWS.find(x => x.key === el.dataset.tab);
+    el.querySelector("[data-count]").textContent = v.rows.length.toLocaleString();
+  }
   $("blurb").textContent = view.blurb;
 
-  const visible = view.rows.filter(r => view.filter(r, f));
+  /* only the filters this view uses are visible */
+  $("q").placeholder = view.search;
+  $("state").hidden = !view.filters.includes("state");
+  $("healthWrap").hidden = !view.filters.includes("health");
+
+  const visible = view.rows.filter(r => view.match(r, f));
   $("gridHead").innerHTML = `<tr>${view.head.map(h => `<th>${esc(h)}</th>`).join("")}</tr>`;
+  const filtered = activeFilterCount(view, f) > 0;
+  const emptyMsg = view.rows.length && filtered
+    ? "0 rows match your filters — press Reset to clear them."
+    : view.emptyData;
   $("gridBody").innerHTML = visible.length
-    ? visible.slice(0, 500).map(view.render).join("")
-    : `<tr><td colspan="${view.head.length}" class="org-meta" style="padding:16px">${esc(view.empty)}</td></tr>`;
-  $("cards").innerHTML = visible.slice(0, 200).map(view.card).join("");
+    ? visible.slice(0, RENDER_CAP).map(view.render).join("")
+    : `<tr><td colspan="${view.head.length}" class="org-meta" style="padding:16px">${esc(emptyMsg)}</td></tr>`;
+  $("cards").innerHTML = visible.length
+    ? visible.slice(0, RENDER_CAP).map(view.card).join("")
+    : `<p class="org-meta">${esc(emptyMsg)}</p>`;
+  const shown = Math.min(visible.length, RENDER_CAP);
   $("countNote").textContent = `${visible.length.toLocaleString()} of ${view.rows.length.toLocaleString()} rows`
-    + (visible.length > 500 ? " — showing the first 500." : ".");
+    + (visible.length > shown ? ` — showing the first ${shown}.` : ".");
 }
 
 function wire() {
-  $("tabs").addEventListener("click", e => {
-    const tab = e.target.closest(".tab");
-    if (tab) { state.tab = tab.dataset.tab; render(); }
-  });
   ["q", "state", "health"].forEach(id => $(id).addEventListener("input", render));
   $("reset").addEventListener("click", () => {
     $("q").value = ""; $("state").value = ""; $("health").checked = false; render();
@@ -514,15 +597,17 @@ load().then(() => {
   const states = [...new Set(DATA.orgs.map(o => o.state).filter(Boolean))].sort();
   $("state").insertAdjacentHTML("beforeend",
     states.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join(""));
+  buildTabs();
   wire();
   render();
-  const leads = VIEWS[0].count + VIEWS[2].count;
-  $("stamp").textContent = `${leads} workable leads · ${VIEWS[1].count} live bids`;
+  const leads = VIEWS[0].rows.length + VIEWS[2].rows.length;
+  const fresh = DATA.meta.data_date || DATA.meta.generated;
+  $("stamp").textContent = `${leads} leads · ${VIEWS[1].rows.length} bids · data ${fresh || "date unknown"}`;
   $("footer").innerHTML =
-    `Campus store operator and contact from each institution's own site; bids from SAM.gov,
-     Georgia and Florida procurement portals (physical materials only); surplus buyers from a
-     verified trade list; library contacts from OhioLINK. Generated ${esc(DATA.meta.generated || "")}.
-     Contacts are organizational mailboxes published by the organizations themselves.`;
+    `Campus store operator and contact from each institution's own site; bids from SAM.gov and the
+     Georgia and Florida procurement portals (physical materials, university and above only);
+     surplus buyers from a verified trade list; library contacts from OhioLINK. All contacts are
+     organizational mailboxes the organizations publish themselves. Data as of ${esc(fresh || "—")}.`;
 }).catch(err => {
   $("status").innerHTML = `<p>Could not load the database.</p><p><code>${esc(err.message)}</code></p>
     <p class="org-meta">Serve this folder over HTTP — <code>python -m http.server</code> from the repo

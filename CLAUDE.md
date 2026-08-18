@@ -11,6 +11,13 @@ Two commercial tracks:
 
 Faculty are *adopters*, not buyers. We only target organizations with a purchasing function.
 
+**Who buys physical textbooks, in practice:** campus stores (the core buyer — but only
+*independent* ones decide locally; Follett/Barnes & Noble-managed stores buy centrally and are
+do-not-chase), higher-ed institutions via procurement, and Track B buyback/wholesale programs.
+**University and above only — K-12 is not our market** and is excluded at the source level.
+Libraries buy monographs and serials, not adoption stock — a secondary play. Electronic
+subscription renewals are unfulfillable and never signals.
+
 ## Layout
 
 ```
@@ -81,6 +88,10 @@ sending email · CRM integration.
       See SOURCES.md.
 - [x] **Stage 5** — dedupe (dry-run by default), email-verification stub, 0–100 scoring
 - [x] **Stage 6** — single-file sql.js dashboard + GitHub Pages workflow
+- [~] **Stage 7 (revamp)** — the desk is now five plays for the commercial team:
+      campus stores (independent = lead, Follett/B&N-managed = do-not-chase), live bids
+      (physical materials only), surplus buyers, library accounts (secondary), do-not-chase.
+      `ingest/campus_stores.py` classifies store operators across IPEDS campuses.
 
 Phase 1 is complete when: 500+ scored orgs each with ≥1 contact across both tracks; 20+ open
 signals with future deadlines; every ingester runs locally and on a schedule; the dashboard is

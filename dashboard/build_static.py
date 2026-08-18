@@ -28,18 +28,29 @@ PREVIEW = HERE / "preview.html"
 # Kept in sync with the SQL in index.html — same shape, same column aliases.
 ORG_SQL = """
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
-         o.state, o.city, o.size_metric AS size, o.size_metric_type AS size_type,
-         o.programs_flags AS flags, o.notes AS notes, o.source AS source, o.status,
-         o.coop_affiliations AS coops
+         o.state, o.city, o.size_metric AS size, o.programs_flags AS flags,
+         o.notes AS notes, o.status, o.coop_affiliations AS coops
     FROM organizations o"""
-CONTACT_SQL = """SELECT id, org_id, name, title, role_type, email, phone, is_generic,
-                        source FROM contacts"""
+CONTACT_SQL = """SELECT org_id, role_type, email, phone FROM contacts"""
 SIGNAL_SQL = """
-  SELECT s.id, s.org_id, s.signal_type AS type, s.title, s.url, s.reference_number AS ref,
-         s.deadline, s.amount_estimate AS amount, s.source, s.state,
+  SELECT s.id, s.title, s.url, s.reference_number AS ref, s.deadline, s.source, s.state,
          COALESCE(o.name, s.org_name_raw) AS org_name
     FROM signals s LEFT JOIN organizations o ON o.id = s.org_id
-   WHERE s.status = 'open' AND s.deadline >= date('now')"""
+   WHERE s.status = 'open' AND s.deadline >= date('now')
+     AND lower(s.title) NOT LIKE '%subscription%'
+     AND lower(s.title) NOT LIKE '%journal%'
+     AND lower(s.title) NOT LIKE '%web hosting%'
+     AND lower(s.title) NOT LIKE '%database%'
+     AND lower(s.title) NOT LIKE '%annual review%'
+     AND lower(s.title) NOT LIKE '%intent to award%'
+     AND lower(s.title) NOT LIKE '%marker%'
+     AND lower(s.title) NOT LIKE '%k-12%'
+     AND lower(s.title) NOT LIKE '%k12%'
+     AND lower(s.title) NOT LIKE '%elementary%'
+     AND lower(s.title) NOT LIKE '%middle school%'
+     AND lower(s.title) NOT LIKE '%high school%'
+     AND lower(COALESCE(o.name, s.org_name_raw, '')) NOT LIKE '%school%'
+     AND lower(COALESCE(o.name, s.org_name_raw, '')) NOT LIKE '%board of education%'"""
 
 
 def build_web_db() -> None:
@@ -59,12 +70,13 @@ def collect() -> dict:
     conn = common.connect()
     fetch = lambda sql: [dict(r) for r in conn.execute(sql)]  # noqa: E731
     latest = conn.execute(
-        "SELECT MAX(date(date_updated)) FROM organizations").fetchone()[0]
+        "SELECT MAX(d) FROM (SELECT MAX(date(date_updated)) AS d FROM organizations"
+        "                    UNION ALL SELECT MAX(date(date_updated)) FROM signals)").fetchone()[0]
     return {
         "orgs": fetch(ORG_SQL),
         "contacts": fetch(CONTACT_SQL),
         "signals": fetch(SIGNAL_SQL),
-        "meta": {"generated": latest, "origin": "embedded", "ipeds_year": "2024"},
+        "meta": {"data_date": latest, "generated": latest, "origin": "embedded"},
     }
 
 
