@@ -39,6 +39,10 @@ jobs:
         continue-on-error: true
         run: python -m ingest.wholesaler_contacts
 
+      - name: Campus stores (next 400 unchecked campuses)
+        continue-on-error: true
+        run: python -m ingest.campus_stores --limit 400 --workers 8
+
       - name: Rescore and rebuild the dashboard data
         run: |
           python -m enrich.score

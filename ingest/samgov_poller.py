@@ -68,9 +68,9 @@ UNFULFILLABLE = re.compile(
     r"sciencedirect|scifinder|westlaw|lexis|bloomberg|proquest|ebsco|ovid|clarivate|"
     r"digital magazine|journal platform|web hosting|open access publishing|"
     r"software|saas|streaming|annual reviews|data subscription|"
-    r"subscription service|subscriptions? (?:renewal|for|to)|"
+    r"subscription|marker|intent to award|"
     # university-and-above only — K-12 content is not our market
-    r"k-12|k12|k-5|elementary school|middle school|high school|gale in context)", re.I)
+    r"k-12|k12|elementary school|middle school|high school|gale in context)", re.I)
 
 # Notice types worth acting on. 'p' presolicitation, 'o' solicitation, 'k' combined synopsis,
 # 'r' sources sought. Awards and justifications are excluded — the buy is already gone.
