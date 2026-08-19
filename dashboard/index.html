@@ -85,8 +85,9 @@ a { color: var(--accent); }
 .tab[aria-selected="true"] { background: var(--surface); border-color: var(--line);
   color: var(--ink); font-weight: 600; }
 .tab:hover { color: var(--accent); }
-.tab.muted { margin-left: auto; font-size: 12.5px; }
+.tab.muted { font-size: 12.5px; }
 .tab.muted b { font-size: 13px; }
+.tab.push { margin-left: auto; }
 .tab-blurb { color: var(--ink-2); font-size: 13.5px; margin: 12px 2px 4px; max-width: 76ch; }
 
 .filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; align-items: center; }
@@ -153,7 +154,7 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
   .table-scroll { display: none; }
   .cards { display: block; }
   .masthead h1 { font-size: 22px; }
-  .tab.muted { margin-left: 0; }
+  .tab.push { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -177,6 +178,8 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
       <input type="checkbox" id="health" style="accent-color:var(--accent)"> Nursing / allied health
     </label>
     <button type="button" id="reset">Reset</button>
+    <span class="spacer" style="flex:1"></span>
+    <button type="button" id="downloadXlsx">Download Excel</button>
   </div>
 
   <p class="count-note" id="countNote"></p>
@@ -354,6 +357,20 @@ function buildViews() {
   const locked = [...storeLocked.map(x => ({ kind: "store", ...x })),
                   ...incumbents.map(x => ({ kind: "incumbent", ...x }))];
 
+  /* Tried, found nothing: every campus we've actually visited (checked_at is set) that
+     is neither a lead (email/phone) nor locked to a national operator. Distinct from
+     "Skip these" — that tab is a confirmed non-lead; this one is "we don't know yet,
+     worth a manual look or a call cold." Nothing here required a re-crawl: it's the
+     same store.* data already loaded, just the rows the other views don't claim. */
+  const noContact = [];
+  for (const o of DATA.orgs) {
+    const store = parseJson(o.notes, {}).store;
+    if (!store || store.kind === "managed") continue;
+    if (store.email || store.phone) continue;
+    noContact.push({ o, store });
+  }
+  noContact.sort((a, b) => (b.o.size || 0) - (a.o.size || 0));
+
   VIEWS = [
     {
       key: "stores", label: "Campus stores", rows: storeLeads,
@@ -363,6 +380,11 @@ function buildViews() {
       render: renderStoreRow, card: cardStore,
       match: ({ o }, f) => matchOrg(o, f),
       emptyData: "No independent campus stores found yet — the campus crawl is still filling this list.",
+      // The on-screen table merges email+phone into one "Contact" cell for scanning;
+      // Excel gets them as separate columns instead, since that's what's sortable/filterable.
+      excelHead: ["Institution", "State", "Enrollment", "Programs", "Store", "Email", "Phone"],
+      toRow: ({ o, store }) => [o.name, o.state || "", o.size ?? "", healthFlags(o).join(", "),
+                                store.store_url || "", store.email || "", store.phone || ""],
     },
     {
       key: "bids", label: "Live bids", rows: bids,
@@ -372,6 +394,7 @@ function buildViews() {
       render: renderBidRow, card: cardBid,
       match: (s, f) => matchBid(s, f),
       emptyData: "Nothing fulfillable is open right now. The pollers run every day — an empty list is honest, not broken.",
+      toRow: s => [s.deadline || "", s.org_name || "", s.title, s.ref || "", s.source],
     },
     {
       key: "surplus", label: "Surplus buyers", rows: surplus,
@@ -381,6 +404,8 @@ function buildViews() {
       render: renderSurplusRow, card: cardSurplus,
       match: ({ o, contacts }, f) => matchOrg(o, f, contacts),
       emptyData: "No reachable surplus buyers in the database.",
+      toRow: ({ o, contacts }) => [o.name, o.org_type.replace("_", " "), o.segment || "",
+                                   contacts.map(c => c.email).join("; ")],
     },
     {
       key: "libraries", label: "Library accounts", rows: libraries,
@@ -390,6 +415,20 @@ function buildViews() {
       render: renderLibraryRow, card: cardLibrary,
       match: ({ o }, f) => matchOrg(o, f),
       emptyData: "No library contacts in the database.",
+      toRow: ({ o, contacts }) => [o.name, o.state || "", o.size ?? "",
+                                   parseJson(o.coops, []).join(", "),
+                                   contacts.map(c => c.email).join("; ")],
+    },
+    {
+      key: "nocontact", label: "No contact found", rows: noContact, muted: true, push: true,
+      blurb: "Every campus we've actually visited that isn't a lead and isn't locked to a national operator — we tried and came up empty. Worth a manual look before writing them off.",
+      filters: ["q", "state", "health"], search: "Search institution, city",
+      head: ["Institution", "State", "Enrollment", "Why no contact", "Their site"],
+      render: renderNoContactRow, card: cardNoContact,
+      match: ({ o }, f) => matchOrg(o, f),
+      emptyData: "Nothing here — every visited campus is either a lead or locked.",
+      toRow: ({ o, store }) => [o.name, o.state || "", o.size ?? "", noContactReason(store),
+                                noContactLink(o, store) || ""],
     },
     {
       key: "locked", label: "Skip these", rows: locked, muted: true,
@@ -399,6 +438,10 @@ function buildViews() {
       render: renderLockedRow, card: cardLocked,
       match: (x, f) => matchOrg(x.o, f),
       emptyData: "Nothing recorded here yet.",
+      excelHead: ["Organization", "State", "Why to skip", "Detail"],
+      toRow: x => [x.o.name, x.o.state || "",
+                  x.kind === "store" ? (x.store.operator || "national operator") : "federal incumbent",
+                  x.kind === "store" ? (x.store.store_url || "") : (x.note.largest_award || "")],
     },
   ];
 }
@@ -511,6 +554,46 @@ function cardLibrary({ o, contacts }) {
   </article>`;
 }
 
+/* No contact found: turn the ingester's internal note into a plain-English reason a
+   rep can read at a glance, and always give them a link to look themselves. */
+const NOTE_LABELS = {
+  "robots-disallowed": "Their site blocks automated visitors",
+  "no store link found": "No bookstore link on their website",
+  "store page unavailable": "Bookstore page didn't load",
+};
+function noContactReason(store) {
+  if (store.note) {
+    if (NOTE_LABELS[store.note]) return NOTE_LABELS[store.note];
+    if (/^home page HTTP/.test(store.note)) return `Their site returned an error (${store.note.replace("home page ", "")})`;
+    if (/^unreachable/.test(store.note)) return "Couldn't connect to their site";
+    return store.note;
+  }
+  return store.store_url ? "Found their store, but no email or phone was published"
+                          : "No published contact found";
+}
+function noContactLink(o, store) {
+  return store.store_url || (o.domain ? `https://${o.domain}/` : null);
+}
+function renderNoContactRow({ o, store }) {
+  const link = noContactLink(o, store);
+  return `<tr>
+    <td><div class="org-name">${esc(o.name)}</div><div class="org-meta">${esc(o.city || "")}</div></td>
+    <td>${esc(o.state || "—")}</td>
+    <td class="num">${num(o.size)}</td>
+    <td class="org-meta">${esc(noContactReason(store))}</td>
+    <td>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">look yourself</a>` : "—"}</td>
+  </tr>`;
+}
+function cardNoContact({ o, store }) {
+  const link = noContactLink(o, store);
+  return `<article class="card">
+    <div class="org-name">${esc(o.name)}</div>
+    <div class="card-meta">${esc(o.city || "")}${o.state ? ", " + esc(o.state) : ""} · ${num(o.size)} enrolled</div>
+    <div class="card-meta">${esc(noContactReason(store))}</div>
+    ${link ? `<div class="act"><a href="${esc(link)}" target="_blank" rel="noopener">look yourself</a></div>` : ""}
+  </article>`;
+}
+
 /* Skip these: the reason is plain text — red stays reserved for deadlines. */
 function renderLockedRow(x) {
   const tag = x.kind === "store" ? (x.store.operator || "national operator") : "federal incumbent";
@@ -534,12 +617,143 @@ function cardLocked(x) {
   </article>`;
 }
 
+/* ---------------------------------------------------------------------------
+   Excel export. A minimal, dependency-free .xlsx writer — no CDN library, so
+   the page stays a single self-contained file and works offline. XLSX is just
+   a ZIP of XML parts; using the ZIP "stored" method (no compression) skips
+   needing a deflate implementation entirely.
+   --------------------------------------------------------------------------- */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = CRC_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function xmlEscape(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+}
+function colLetters(i) {           // 0 -> A, 1 -> B, ... 26 -> AA
+  let n = i + 1, s = "";
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+function sheetXmlFor(rowsOfValues) {
+  const rows = rowsOfValues.map((values, r) => {
+    const cells = values.map((v, c) => {
+      const ref = colLetters(c) + (r + 1);
+      if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+      const text = v == null ? "" : String(v);
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(text)}</t></is></c>`;
+    }).join("");
+    return `<row r="${r + 1}">${cells}</row>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`
+    + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + `<sheetData>${rows}</sheetData></worksheet>`;
+}
+function buildZipStored(files) {   // files: [{name, text}] -> Uint8Array of a valid .zip
+  const encoder = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const dosTime = 0, dosDate = 0x5821;   // fixed timestamp — nobody reads a report's mtime
+
+  for (const { name, text } of files) {
+    const nameBytes = encoder.encode(name);
+    const data = encoder.encode(text);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true); lv.setUint16(6, 0, true);
+    lv.setUint16(8, 0, true); lv.setUint16(10, dosTime, true); lv.setUint16(12, dosDate, true);
+    lv.setUint32(14, crc, true); lv.setUint32(18, data.length, true); lv.setUint32(22, data.length, true);
+    lv.setUint16(26, nameBytes.length, true); lv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+    parts.push(local, data);
+
+    const centralEntry = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(centralEntry.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true); cv.setUint16(10, 0, true); cv.setUint16(12, dosTime, true);
+    cv.setUint16(14, dosDate, true); cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameBytes.length, true); cv.setUint16(30, 0, true); cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true); cv.setUint16(36, 0, true); cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset, true);
+    centralEntry.set(nameBytes, 46);
+    central.push(centralEntry);
+
+    offset += local.length + data.length;
+  }
+
+  const centralSize = central.reduce((n, c) => n + c.length, 0);
+  const centralOffset = offset;
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true); ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, centralOffset, true);
+
+  const total = offset + centralSize + eocd.length;
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const p of parts) { out.set(p, pos); pos += p.length; }
+  for (const c of central) { out.set(c, pos); pos += c.length; }
+  out.set(eocd, pos);
+  return out;
+}
+function buildXlsx(headerAndRows) {
+  const files = [
+    { name: "[Content_Types].xml", text:
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
+      + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
+      + `<Default Extension="xml" ContentType="application/xml"/>`
+      + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
+      + `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+      + `</Types>` },
+    { name: "_rels/.rels", text:
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+      + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
+      + `</Relationships>` },
+    { name: "xl/workbook.xml", text:
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
+      + `<sheets><sheet name="Leads" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: "xl/_rels/workbook.xml.rels", text:
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+      + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+      + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`
+      + `</Relationships>` },
+    { name: "xl/worksheets/sheet1.xml", text: sheetXmlFor(headerAndRows) },
+  ];
+  return buildZipStored(files);
+}
+function downloadBlob(bytes, filename, mime) {
+  const blob = new Blob([bytes], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /* --- shell ------------------------------------------------------------------------ */
 const state = { tab: "stores" };
 
 function buildTabs() {
   $("tabs").innerHTML = VIEWS.map(v =>
-    `<button class="tab${v.muted ? " muted" : ""}" aria-selected="${v.key === state.tab}"
+    `<button class="tab${v.muted ? " muted" : ""}${v.push ? " push" : ""}"
+             aria-selected="${v.key === state.tab}"
              data-tab="${v.key}">${esc(v.label)}<b data-count></b></button>`).join("");
   $("tabs").addEventListener("click", e => {
     const tab = e.target.closest(".tab");
@@ -589,6 +803,13 @@ function wire() {
   $("reset").addEventListener("click", () => {
     $("q").value = ""; $("state").value = ""; $("health").checked = false; render();
   });
+  $("downloadXlsx").addEventListener("click", () => {
+    const view = VIEWS.find(v => v.key === state.tab);
+    const visible = view.rows.filter(r => view.match(r, filters()));   // full match, no render cap
+    const bytes = buildXlsx([view.excelHead || view.head, ...visible.map(view.toRow)]);
+    downloadBlob(bytes, `${view.key}.xlsx`,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  });
 }
 
 load().then(() => {
@@ -600,9 +821,10 @@ load().then(() => {
   buildTabs();
   wire();
   render();
-  const leads = VIEWS[0].rows.length + VIEWS[2].rows.length;
+  const byKey = key => VIEWS.find(v => v.key === key).rows.length;
+  const leads = byKey("stores") + byKey("surplus");
   const fresh = DATA.meta.data_date || DATA.meta.generated;
-  $("stamp").textContent = `${leads} leads · ${VIEWS[1].rows.length} bids · data ${fresh || "date unknown"}`;
+  $("stamp").textContent = `${leads} leads · ${byKey("bids")} bids · data ${fresh || "date unknown"}`;
   $("footer").innerHTML =
     `Campus store operator and contact from each institution's own site; bids from SAM.gov and the
      Georgia and Florida procurement portals (physical materials, university and above only);
