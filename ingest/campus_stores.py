@@ -249,16 +249,27 @@ def store_row(conn, org_id: int, found: dict) -> bool:
 
 def run(*, limit: int = 250, workers: int = 8, recheck: bool = False) -> None:
     conn = common.connect()
-    # Priority: health-programme campuses first (the LWW segment), then by enrollment.
-    targets = conn.execute(
-        """SELECT id, name, website_domain FROM organizations
-            WHERE source = 'ipeds' AND website_domain IS NOT NULL
-              AND (? OR json_extract(notes, '$.store.checked_at') IS NULL)
-            ORDER BY (json_extract(programs_flags, '$.nursing') = 1
-                      OR json_extract(programs_flags, '$.allied_health') = 1) DESC,
-                     size_metric DESC
-            LIMIT ?""", (1 if recheck else 0, limit)).fetchall()
-    log.info("examining %d institutions with %d workers", len(targets), workers)
+    if recheck:
+        # The initial pull is done (every institution has a checked_at). Ongoing runs must
+        # rotate through the whole set by staleness, or a fixed size/health-flag ordering
+        # would re-examine the same top campuses every single run and never reach the rest.
+        targets = conn.execute(
+            """SELECT id, name, website_domain FROM organizations
+                WHERE source = 'ipeds' AND website_domain IS NOT NULL
+                ORDER BY json_extract(notes, '$.store.checked_at') ASC
+                LIMIT ?""", (limit,)).fetchall()
+    else:
+        # First pull: health-programme campuses first (the LWW segment), then by enrollment.
+        targets = conn.execute(
+            """SELECT id, name, website_domain FROM organizations
+                WHERE source = 'ipeds' AND website_domain IS NOT NULL
+                  AND json_extract(notes, '$.store.checked_at') IS NULL
+                ORDER BY (json_extract(programs_flags, '$.nursing') = 1
+                          OR json_extract(programs_flags, '$.allied_health') = 1) DESC,
+                         size_metric DESC
+                LIMIT ?""", (limit,)).fetchall()
+    log.info("examining %d institutions with %d workers (%s)", len(targets), workers,
+             "recheck rotation" if recheck else "first pull")
 
     tally = {"independent": 0, "managed": 0, "unknown": 0, "contacts": 0}
     with common.ingest_run(conn, SOURCE) as counters:

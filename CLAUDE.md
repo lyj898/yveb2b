@@ -88,10 +88,12 @@ sending email · CRM integration.
       See SOURCES.md.
 - [x] **Stage 5** — dedupe (dry-run by default), email-verification stub, 0–100 scoring
 - [x] **Stage 6** — single-file sql.js dashboard + GitHub Pages workflow
-- [~] **Stage 7 (revamp)** — the desk is now five plays for the commercial team:
-      campus stores (independent = lead, Follett/B&N-managed = do-not-chase), live bids
-      (physical materials only), surplus buyers, library accounts (secondary), do-not-chase.
-      `ingest/campus_stores.py` classifies store operators across IPEDS campuses.
+- [x] **Stage 7 (revamp)** — the desk is five plays for the commercial team: campus stores
+      (independent = lead, Follett/B&N-managed = do-not-chase), live bids (physical materials
+      only), surplus buyers, library accounts (secondary), do-not-chase. `ingest/campus_stores.py`
+      has examined all 4,930 IPEDS institutions with a website (2026-08-19): 656 store leads
+      (119 with email, 537 phone-only), 761 locked to a national operator. Monthly workflow now
+      rotates a recheck of the 400 oldest-checked campuses, covering the full set every ~12 runs.
 
 Phase 1 is complete when: 500+ scored orgs each with ≥1 contact across both tracks; 20+ open
 signals with future deadlines; every ingester runs locally and on a schedule; the dashboard is

@@ -39,9 +39,12 @@ jobs:
         continue-on-error: true
         run: python -m ingest.wholesaler_contacts
 
-      - name: Campus stores (next 400 unchecked campuses)
+      # The initial 4,930-campus pull is complete (2026-08-19). This now rotates through
+      # the whole set by staleness, so every campus's store gets re-verified every
+      # ~12 monthly runs — operators change (a campus can switch to/from Follett).
+      - name: Campus stores (recheck oldest 400)
         continue-on-error: true
-        run: python -m ingest.campus_stores --limit 400 --workers 8
+        run: python -m ingest.campus_stores --limit 400 --workers 8 --recheck
 
       - name: Rescore and rebuild the dashboard data
         run: |
