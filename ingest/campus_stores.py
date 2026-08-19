@@ -101,13 +101,58 @@ def find_store_link(soup: BeautifulSoup, base_url: str, own_domain: str) -> str 
     return best
 
 
+def safe_get(url: str):
+    """polite_get, but a connection-level failure returns None instead of raising.
+
+    Used for absolute store-subdomain URLs, where a www.-fallback rarely applies (the
+    subdomain is usually already correctly scoped) — the goal here is just to stop one
+    dead server from taking down the whole examine() call and leaving the institution
+    permanently un-stamped and endlessly retried.
+    """
+    import requests
+
+    try:
+        return common.polite_get(url, timeout=25, allow_redirects=True)
+    except requests.exceptions.RequestException:
+        return None
+
+
+def fetch_with_www_fallback(path: str, domain: str) -> tuple:
+    """GET https://{domain}{path}. Returns (response_or_None, note_if_failed).
+
+    Retries on www.{domain} when the bare host's TLS certificate doesn't cover it — a
+    real, common misconfiguration: many institutions' certificates list www.example.edu
+    and every department subdomain, but not the bare apex, while IPEDS' WEBADDR and our
+    own normalize_domain both strip 'www.' before we ever make a request. Confirmed on
+    Cal State Fullerton and El Paso Community College, both very real, very live sites
+    that were being recorded as unreachable purely because of this.
+    """
+    import requests
+
+    if not common.robots_allows(f"https://{domain}{path}"):
+        return None, "robots-disallowed"
+    try:
+        return common.polite_get(f"https://{domain}{path}", timeout=25,
+                                 allow_redirects=True), None
+    except requests.exceptions.SSLError:
+        pass
+    except requests.exceptions.RequestException as exc:
+        return None, f"unreachable: {type(exc).__name__}"
+    try:
+        response = common.polite_get(f"https://www.{domain}{path}", timeout=25,
+                                     allow_redirects=True)
+        return response, None
+    except requests.exceptions.RequestException as exc:
+        return None, f"unreachable (bare host TLS failed, www. also failed: {type(exc).__name__})"
+
+
 def examine(domain: str) -> dict:
     """Everything we can learn about one institution's store, in 2-3 requests."""
     result: dict = {"operator": None, "kind": "unknown", "store_url": None,
                     "email": None, "phone": None, "note": None}
-    response = common.polite_get(f"https://{domain}/", timeout=25, allow_redirects=True)
+    response, note = fetch_with_www_fallback("/", domain)
     if response is None:
-        result["note"] = "robots-disallowed"
+        result["note"] = note
         return result
     if response.status_code >= 400:
         result["note"] = f"home page HTTP {response.status_code}"
@@ -117,8 +162,7 @@ def examine(domain: str) -> dict:
     link = find_store_link(soup, response.url, domain)
     if not link:
         for path in STORE_PATHS:          # a couple of conventional guesses, then give up
-            probe = common.polite_get(f"https://{domain}{path}", timeout=25,
-                                      allow_redirects=True)
+            probe, _ = fetch_with_www_fallback(path, domain)
             if probe is not None and probe.status_code < 400:
                 link, soup = probe.url, BeautifulSoup(probe.text, "html.parser")
                 break
@@ -132,7 +176,7 @@ def examine(domain: str) -> dict:
     if kind == "managed":
         return result                     # central buying: no local contact worth storing
 
-    page = common.polite_get(link, timeout=25, allow_redirects=True)
+    page = safe_get(link)
     if page is None or page.status_code >= 400:
         result["note"] = "store page unavailable"
         return result
@@ -153,8 +197,7 @@ def examine(domain: str) -> dict:
     for anchor in store_soup.find_all("a", href=True):
         label = f"{anchor.get_text(' ', strip=True)} {anchor['href']}".lower()
         if "contact" in label or "about" in label or "staff" in label:
-            deeper = common.polite_get(urllib.parse.urljoin(page.url, anchor["href"]),
-                                       timeout=25, allow_redirects=True)
+            deeper = safe_get(urllib.parse.urljoin(page.url, anchor["href"]))
             if deeper is not None and deeper.status_code < 400:
                 pages.append(BeautifulSoup(deeper.text, "html.parser"))
             break
