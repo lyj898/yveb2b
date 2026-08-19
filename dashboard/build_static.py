@@ -28,7 +28,7 @@ PREVIEW = HERE / "preview.html"
 # Kept in sync with the SQL in index.html — same shape, same column aliases.
 ORG_SQL = """
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
-         o.state, o.city, o.size_metric AS size, o.programs_flags AS flags,
+         o.state, o.city, o.size_metric AS size,
          o.notes AS notes, o.status, o.coop_affiliations AS coops
     FROM organizations o"""
 CONTACT_SQL = """SELECT org_id, role_type, email, phone FROM contacts"""

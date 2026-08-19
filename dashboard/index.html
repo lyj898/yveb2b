@@ -174,9 +174,6 @@ footer { margin-top: 28px; color: var(--ink-3); font-size: 12.5px;
   <div class="filters">
     <input type="search" id="q" placeholder="Search">
     <select id="state"><option value="">All states</option></select>
-    <label id="healthWrap" style="font-size:13px;color:var(--ink-2)">
-      <input type="checkbox" id="health" style="accent-color:var(--accent)"> Nursing / allied health
-    </label>
     <button type="button" id="reset">Reset</button>
     <span class="spacer" style="flex:1"></span>
     <button type="button" id="downloadXlsx">Download Excel</button>
@@ -205,7 +202,7 @@ const DB_CANDIDATES = ["./leads.db", "../db/leads.db"];
 
 const ORG_SQL = `
   SELECT o.id, o.name, o.org_type, o.track, o.segment, o.website_domain AS domain,
-         o.state, o.city, o.size_metric AS size, o.programs_flags AS flags,
+         o.state, o.city, o.size_metric AS size,
          o.notes AS notes, o.status, o.coop_affiliations AS coops
     FROM organizations o`;
 const CONTACT_SQL = `SELECT org_id, role_type, email, phone FROM contacts`;
@@ -271,7 +268,6 @@ const num = n => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
 const parseJson = (v, fb) => { if (v == null) return fb; if (typeof v === "object") return v;
   try { return JSON.parse(v); } catch (e) { return fb; } };
 const daysTo = iso => iso ? Math.round((new Date(iso + "T00:00:00") - new Date().setHours(0,0,0,0)) / 864e5) : null;
-const HEALTH = ["nursing", "allied_health", "medical", "pharmacy"];
 const RENDER_CAP = 300;
 
 function deadlinePill(iso) {
@@ -314,8 +310,6 @@ document.addEventListener("click", e => {
    --------------------------------------------------------------------------- */
 let VIEWS = [];
 
-function healthFlags(o) { const f = parseJson(o.flags, {}); return HEALTH.filter(k => f[k]); }
-function isHealth(o) { return healthFlags(o).length > 0; }
 const reachRank = s => (s.email ? 2 : s.phone ? 1 : 0);
 
 function buildViews() {
@@ -375,15 +369,15 @@ function buildViews() {
     {
       key: "stores", label: "Campus stores", rows: storeLeads,
       blurb: "Institutions running their own store — the buying decision is on campus. Email or phone is one tap. Lead with used/bulk pricing on core adoption titles.",
-      filters: ["q", "state", "health"], search: "Search school, city, email",
-      head: ["Institution", "State", "Enrollment", "Programs", "Store", "Contact"],
+      filters: ["q", "state"], search: "Search school, city, email",
+      head: ["Institution", "State", "Enrollment", "Store", "Contact"],
       render: renderStoreRow, card: cardStore,
       match: ({ o }, f) => matchOrg(o, f),
       emptyData: "No independent campus stores found yet — the campus crawl is still filling this list.",
       // The on-screen table merges email+phone into one "Contact" cell for scanning;
       // Excel gets them as separate columns instead, since that's what's sortable/filterable.
-      excelHead: ["Institution", "State", "Enrollment", "Programs", "Store", "Email", "Phone"],
-      toRow: ({ o, store }) => [o.name, o.state || "", o.size ?? "", healthFlags(o).join(", "),
+      excelHead: ["Institution", "State", "Enrollment", "Store", "Email", "Phone"],
+      toRow: ({ o, store }) => [o.name, o.state || "", o.size ?? "",
                                 store.store_url || "", store.email || "", store.phone || ""],
     },
     {
@@ -409,8 +403,8 @@ function buildViews() {
     },
     {
       key: "libraries", label: "Library accounts", rows: libraries,
-      blurb: "Secondary play: consortium libraries with published acquisitions addresses. They buy monographs and reference, not adoption stock — pitch health-sciences backlist.",
-      filters: ["q", "state", "health"], search: "Search institution, city",
+      blurb: "Secondary play: consortium libraries with published acquisitions addresses. They buy monographs and reference, not adoption stock.",
+      filters: ["q", "state"], search: "Search institution, city",
       head: ["Institution", "State", "Enrollment", "Consortium", "Acquisitions contact"],
       render: renderLibraryRow, card: cardLibrary,
       match: ({ o }, f) => matchOrg(o, f),
@@ -422,7 +416,7 @@ function buildViews() {
     {
       key: "nocontact", label: "No contact found", rows: noContact, muted: true, push: true,
       blurb: "Every campus we've actually visited that isn't a lead and isn't locked to a national operator — we tried and came up empty. Worth a manual look before writing them off.",
-      filters: ["q", "state", "health"], search: "Search institution, city",
+      filters: ["q", "state"], search: "Search institution, city",
       head: ["Institution", "State", "Enrollment", "Why no contact", "Their site"],
       render: renderNoContactRow, card: cardNoContact,
       match: ({ o }, f) => matchOrg(o, f),
@@ -448,19 +442,17 @@ function buildViews() {
 
 /* --- filtering ---------------------------------------------------------------- */
 function filters() {
-  return { q: $("q").value.trim().toLowerCase(), st: $("state").value, health: $("health").checked };
+  return { q: $("q").value.trim().toLowerCase(), st: $("state").value };
 }
 function activeFilterCount(view, f) {
   let n = 0;
   if (view.filters.includes("q") && f.q) n++;
   if (view.filters.includes("state") && f.st) n++;
-  if (view.filters.includes("health") && f.health) n++;
   return n;
 }
 function matchOrg(o, f, contacts) {
   const view = VIEWS.find(v => v.key === state.tab);
   if (view.filters.includes("state") && f.st && o.state !== f.st) return false;
-  if (view.filters.includes("health") && f.health && !isHealth(o)) return false;
   if (f.q) {
     const store = parseJson(o.notes, {}).store || {};
     const emails = (contacts || []).map(c => c.email).join(" ");
@@ -487,7 +479,6 @@ function renderStoreRow({ o, store }) {
     <td><div class="org-name">${esc(o.name)}</div><div class="org-meta">${esc(o.city || "")}</div></td>
     <td>${esc(o.state || "—")}</td>
     <td class="num">${num(o.size)}</td>
-    <td>${healthFlags(o).map(x => `<span class="pill flag">${esc(x.replace("_", " "))}</span>`).join(" ") || '<span class="org-meta">—</span>'}</td>
     <td>${store.store_url ? `<a href="${esc(store.store_url)}" target="_blank" rel="noopener">site</a>` : "—"}</td>
     <td>${contactCell(store)}</td>
   </tr>`;
@@ -496,7 +487,6 @@ function cardStore({ o, store }) {
   return `<article class="card">
     <div class="org-name">${esc(o.name)}</div>
     <div class="card-meta">${esc(o.city || "")}${o.state ? ", " + esc(o.state) : ""} · ${num(o.size)} enrolled</div>
-    <div class="card-pills">${healthFlags(o).map(x => `<span class="pill flag">${esc(x.replace("_"," "))}</span>`).join("")}</div>
     <div class="act">${store.email ? emailLink(store.email) : ""} ${store.phone ? phoneLink(store.phone) : ""}
       ${store.store_url ? `<a href="${esc(store.store_url)}" target="_blank" rel="noopener">store site</a>` : ""}</div>
   </article>`;
@@ -779,7 +769,6 @@ function render() {
   /* only the filters this view uses are visible */
   $("q").placeholder = view.search;
   $("state").hidden = !view.filters.includes("state");
-  $("healthWrap").hidden = !view.filters.includes("health");
 
   const visible = view.rows.filter(r => view.match(r, f));
   $("gridHead").innerHTML = `<tr>${view.head.map(h => `<th>${esc(h)}</th>`).join("")}</tr>`;
@@ -799,9 +788,9 @@ function render() {
 }
 
 function wire() {
-  ["q", "state", "health"].forEach(id => $(id).addEventListener("input", render));
+  ["q", "state"].forEach(id => $(id).addEventListener("input", render));
   $("reset").addEventListener("click", () => {
-    $("q").value = ""; $("state").value = ""; $("health").checked = false; render();
+    $("q").value = ""; $("state").value = ""; render();
   });
   $("downloadXlsx").addEventListener("click", () => {
     const view = VIEWS.find(v => v.key === state.tab);
